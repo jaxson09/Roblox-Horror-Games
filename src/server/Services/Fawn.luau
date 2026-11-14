@@ -769,6 +769,16 @@ function Fawn.reset()
 	workspace:SetAttribute("HS_FawnState", "Dormant")
 end
 
+-- It has someone: stand still, in the catch pose, for as long as the grab lasts.
+function Fawn.hold(seconds: number)
+	pauseUntil = math.max(pauseUntil, os.clock() + seconds)
+	rig.Model:SetAttribute("CatchAt", workspace:GetServerTimeNow())
+end
+
+function Fawn.enraged(): boolean
+	return enraged
+end
+
 -- Makes it stand still for a moment (it reels when someone wrenches free).
 function Fawn.pause(seconds: number)
 	pauseUntil = math.max(pauseUntil, os.clock() + seconds)

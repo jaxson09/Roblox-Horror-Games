@@ -52,6 +52,11 @@ local facility = Facility.build(world)
 local lobby = Lobby.build(world)
 Shift.init(facility, lobby)
 
+local function teleportFailed(player: Player)
+	Remotes.ToClient:FireClient(player, "TeleportFailed")
+	Remotes.ToClient:FireClient(player, "Toast", "THE LIFT JAMMED. TRY AGAIN.", "bad")
+end
+
 -- A lobby was started (by its creator, or by the countdown).
 local function launch(members: { Player }, settings: Parties.Settings)
 	if isStudio or isMatch then
@@ -61,20 +66,34 @@ local function launch(members: { Player }, settings: Parties.Settings)
 	for _, player in members do
 		Remotes.ToClient:FireClient(player, "Teleporting")
 	end
-	local options = Instance.new("TeleportOptions")
-	options.ReservedServerId = HttpService:GenerateGUID(false) -- a fresh private server for this crew
-	options:SetTeleportData({ Difficulty = settings.Difficulty, Part = settings.Part })
+	local data = { Difficulty = settings.Difficulty, Part = settings.Part }
+	-- a fresh private server for this crew, addressed by an id we choose
 	local ok, err = pcall(function()
+		local options = Instance.new("TeleportOptions")
+		options.ReservedServerId = HttpService:GenerateGUID(false)
+		options:SetTeleportData(data)
 		TeleportService:TeleportAsync(game.PlaceId, members, options)
 	end)
 	if not ok then
+		-- older route: ask Roblox to reserve a server, then send the crew to it
+		warn("[Lobby] teleport by reserved id failed, trying an access code:", err)
+		ok, err = pcall(function()
+			local code = TeleportService:ReserveServer(game.PlaceId)
+			TeleportService:TeleportToPrivateServer(game.PlaceId, code, members, nil, data)
+		end)
+	end
+	if not ok then
 		warn("[Lobby] teleport failed:", err)
 		for _, player in members do
-			Remotes.ToClient:FireClient(player, "TeleportFailed")
-			Remotes.ToClient:FireClient(player, "Toast", "THE ELEVATOR JAMMED. TRY AGAIN.", "bad")
+			teleportFailed(player)
 		end
 	end
 end
+
+-- Roblox reports per-player teleport failures here, after the call above has returned.
+TeleportService.TeleportInitFailed:Connect(function(player: Player)
+	teleportFailed(player)
+end)
 
 Parties.init(lobby.Pads, launch, Shift.inLobby)
 
@@ -101,7 +120,12 @@ if isMatch then
 		if not player.Character then
 			player.CharacterAdded:Wait()
 		end
-		task.wait(1.5) -- let the profile and passes load before the drop
+		-- passes decide hearts and break-frees: wait for them (but not forever) before going up
+		local waited = 0
+		while player.Parent and player:GetAttribute("PassesLoaded") ~= true and waited < 8 do
+			waited += task.wait(0.25)
+		end
+		task.wait(1)
 		if player.Parent then
 			Shift.begin({ player }, matchDifficulty)
 		end

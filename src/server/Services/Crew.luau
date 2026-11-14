@@ -23,6 +23,8 @@ export type Member = {
 	Hearts: number,
 	BreakFrees: number, -- times they can still wrench free of a grab
 	Grabbed: boolean, -- in HUSH's hands right now
+	Recovering: boolean, -- between losing a heart and waking up in a recovery bed
+	Riding: boolean, -- in the lift on the way up
 	GrabEnds: number,
 	GrabProgress: number,
 	Locker: Facility.Locker?,
@@ -82,7 +84,7 @@ end
 
 -- In the sublevel and free to act (may be hiding in a locker).
 function Crew.isActive(member: Member): boolean
-	return member.InShift and not member.Grabbed and not member.Eliminated and not member.Escaped
+	return member.InShift and not member.Grabbed and not member.Recovering and not member.Eliminated and not member.Escaped
 end
 
 function Crew.active(): { Member }
@@ -130,6 +132,7 @@ function Crew.enterShift(member: Member, shiftId: number, hearts: number, breakF
 	member.Hearts = hearts
 	member.BreakFrees = breakFrees
 	member.Grabbed = false
+	member.Recovering = false
 	member.GrabEnds = 0
 	member.GrabProgress = 0
 	member.Locker = nil
@@ -231,7 +234,7 @@ local function tagFor(player: Player, character: Model, veteran: boolean)
 	if not head then
 		return
 	end
-	local light = Build.spotLight(head, Enum.NormalId.Front, Color3.fromRGB(255, 244, 214), 2.2, 46, 52, true)
+	local light = Build.spotLight(head, Enum.NormalId.Front, Color3.fromRGB(255, 244, 214), 2.2, 46, 52, false)
 	light.Name = "CrewLight"
 	light.Enabled = false
 
@@ -249,7 +252,16 @@ local function tagFor(player: Player, character: Model, veteran: boolean)
 	label.BackgroundTransparency = 1
 	label.FontFace = Font.new(Config.Fonts.Mono, Enum.FontWeight.Bold)
 	label.Text = player.DisplayName
-	label.TextColor3 = if veteran then Color3.fromRGB(240, 205, 110) else Config.Colors.Osd
+	local function recolour()
+		local gold = veteran or player:GetAttribute("Pass_Veteran") == true
+		label.TextColor3 = if gold then Color3.fromRGB(240, 205, 110) else Config.Colors.Osd
+	end
+	recolour()
+	-- passes can finish loading, or be bought, after the character has spawned
+	local connection = player:GetAttributeChangedSignal("Pass_Veteran"):Connect(recolour)
+	label.Destroying:Connect(function()
+		connection:Disconnect()
+	end)
 	label.TextStrokeTransparency = 0.4
 	label.TextSize = 15
 	label.Parent = gui
@@ -265,6 +277,8 @@ function Crew.add(player: Player, isVeteran: (Player) -> boolean, onRespawn: (Me
 		Hearts = 0,
 		BreakFrees = 0,
 		Grabbed = false,
+		Recovering = false,
+		Riding = false,
 		GrabEnds = 0,
 		GrabProgress = 0,
 		Locker = nil,

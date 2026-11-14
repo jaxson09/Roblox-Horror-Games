@@ -300,9 +300,30 @@ function Grid.findPath(map: Map, sx: number, sy: number, gx: number, gy: number)
 	return nil
 end
 
--- Line of sight between two world points, sampled across the grid. Closed
--- doors and solid cells block it.
+-- Are two points on the same side of the door panel in this door cell?
+local function sameSideOfDoor(map: Map, idx: number, x1: number, z1: number, x2: number, z2: number): boolean
+	local cx, cy = Grid.coords(map, idx)
+	local centerX, centerZ = Grid.cellCenter(map, cx, cy)
+	-- the panel spans the doorway, so it is crossed along the axis people walk through it
+	local alongX = Grid.isWalkable(map, cx - 1, cy) and Grid.isWalkable(map, cx + 1, cy)
+	if alongX then
+		return (x1 - centerX) * (x2 - centerX) > 0
+	end
+	return (z1 - centerZ) * (z2 - centerZ) > 0
+end
+
+-- Line of sight between two world points, sampled across the grid. Solid cells
+-- and closed doors in between block it. The two end cells are special: that is
+-- where the watcher and the watched are standing (possibly in a wall alcove
+-- beside a tube station, or in a doorway), so they only block if a shut door
+-- panel actually lies between the two points.
 function Grid.lineOfSight(map: Map, x1: number, z1: number, x2: number, z2: number): boolean
+	local sx, sy = Grid.worldToCell(map, x1, z1)
+	local ex, ey = Grid.worldToCell(map, x2, z2)
+	if not Grid.inBounds(map, sx, sy) or not Grid.inBounds(map, ex, ey) then
+		return false
+	end
+	local startIdx, endIdx = Grid.index(map, sx, sy), Grid.index(map, ex, ey)
 	local dx, dz = x2 - x1, z2 - z1
 	local dist = math.sqrt(dx * dx + dz * dz)
 	local steps = math.max(1, math.ceil(dist / (map.CellSize * 0.25)))
@@ -313,7 +334,29 @@ function Grid.lineOfSight(map: Map, x1: number, z1: number, x2: number, z2: numb
 			return false
 		end
 		local idx = Grid.index(map, cx, cy)
-		if map.Floor[idx] == "" or map.Closed[idx] then
+		if idx == startIdx or idx == endIdx then
+			if map.Closed[idx] and not sameSideOfDoor(map, idx, x1, z1, x2, z2) then
+				return false
+			end
+			if map.Floor[idx] == "" and startIdx ~= endIdx then
+				-- A wall cell. Only an alcove can be stood in, and it is open on one side
+				-- only: the other point has to be on that side, or the alcove would be a
+				-- window into the room behind it.
+				if not Grid.isAlcove(map, idx) then
+					return false
+				end
+				local otherX, otherZ = x2, z2
+				if idx == endIdx then
+					otherX, otherZ = x1, z1
+				end
+				local cellX, cellY = Grid.coords(map, idx)
+				local centerX, centerZ = Grid.cellCenter(map, cellX, cellY)
+				local faceX, faceY = Grid.mountFacing(map, idx)
+				if (otherX - centerX) * faceX + (otherZ - centerZ) * faceY <= 0 then
+					return false
+				end
+			end
+		elseif map.Floor[idx] == "" or map.Closed[idx] then
 			return false
 		end
 	end

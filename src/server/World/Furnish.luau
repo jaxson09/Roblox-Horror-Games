@@ -331,7 +331,7 @@ local function dress(map: Grid.Map, parent: Instance, region: MapData.Region, rn
 		local midX, midY = (region.X1 + region.X2) / 2, (region.Y1 + region.Y2) / 2
 		local a = at(map, math.floor(midX), math.floor(midY))
 		local b = at(map, math.ceil(midX), math.ceil(midY))
-		local mid = CFrame.new((a + b) / 2)
+		local mid = CFrame.new((a + b) / 2) * CFrame.Angles(0, math.pi, 0) -- counter and sign face the south door
 		solid(parent, "Counter", Vector3.new(22, 3.6, 1.6), mid * CFrame.new(0, 1.8, -5), Color3.fromRGB(108, 112, 108), Enum.Material.Marble)
 		solid(parent, "Counter", Vector3.new(1.6, 3.6, 10), mid * CFrame.new(-10.2, 1.8, 0.8), Color3.fromRGB(108, 112, 108), Enum.Material.Marble)
 		solid(parent, "Counter", Vector3.new(1.6, 3.6, 10), mid * CFrame.new(10.2, 1.8, 0.8), Color3.fromRGB(108, 112, 108), Enum.Material.Marble)

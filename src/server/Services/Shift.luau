@@ -193,7 +193,11 @@ local function eliminate(member: Crew.Member, outcome: string)
 		return
 	end
 	leaveLocker(member)
+	if member.Grabbed then
+		Remotes.ToClient:FireClient(member.Player, "GrabEnd", false) -- or their camera stays on its face
+	end
 	member.Grabbed = false
+	member.Recovering = false
 	member.Eliminated = true
 	member.InShift = false
 	member.Player:SetAttribute("Hunted", false)
@@ -208,6 +212,7 @@ local function eliminate(member: Crew.Member, outcome: string)
 end
 
 local function escape(member: Crew.Member)
+	member.Recovering = false
 	member.Escaped = true
 	member.InShift = false
 	member.Player:SetAttribute("Hunted", false)
@@ -239,6 +244,7 @@ local function catch(member: Crew.Member)
 	Crew.setAnchored(player, true)
 	Crew.sync(member)
 	Data.bump(player, "Caught", 1)
+	Fawn.hold(S.GrabSeconds + 1.2) -- until they are out of its hands and gone
 	local line = string.format(Lore.GrabLines[rng:NextInteger(1, #Lore.GrabLines)], string.upper(player.DisplayName))
 	Remotes.ToClient:FireClient(player, "Grab", Fawn.model(), line, member.BreakFrees > 0, S.GrabSeconds)
 	for _, other in Crew.Members do
@@ -295,22 +301,25 @@ local function resolveGrab(member: Crew.Member, brokeFree: boolean)
 			return
 		end
 	end
+	-- from here until they wake in a bed they are nobody's target
+	member.Recovering = true
 	Crew.sync(member)
 	Remotes.ToClient:FireClient(player, "GrabEnd", false)
 	local bed = recoveryBed()
 	task.delay(0.9, function()
-		if player.Parent and member.InShift then
+		if player.Parent and member.InShift and member.Recovering then
 			Crew.teleport(player, bed.WakeCF)
 			Crew.setAnchored(player, false)
 			banner(player, "Recovery", "bad", member.Hearts)
 		end
+		member.Recovering = false
 	end)
 end
 
 local function stepGrabs()
 	for _, member in Crew.Members do
 		if member.Grabbed and member.InShift then
-			if member.BreakFrees > 0 and member.GrabProgress >= 1 then
+			if member.BreakFrees > 0 and member.GrabProgress >= 0.999 then
 				resolveGrab(member, true)
 			elseif now() >= member.GrabEnds then
 				resolveGrab(member, false)
@@ -486,16 +495,42 @@ local function endShift()
 	Fawn.reset()
 end
 
-local function descend(riders: { Player })
+local function anyRiding(): boolean
+	for _, member in Crew.Members do
+		if member.Riding then
+			return true
+		end
+	end
+	return false
+end
+
+-- `fresh` is true for the ride that opens a new case.
+local function descend(riders: { Player }, fresh: boolean)
 	lobby.ElevatorSound:Play()
+	local longest = S.ElevatorRideTime
 	for i, player in riders do
-		-- new investigators get the training tape on the way up
+		local member = Crew.get(player)
+		if not member then
+			continue
+		end
+		-- new investigators get the training tape, but only on the ride that opens a case:
+		-- nobody should sit through it while their crew is already being hunted
 		local profile = Data.get(player)
-		local briefing = profile ~= nil and profile.Shifts < 2
-		Remotes.ToClient:FireClient(player, "Elevator", if briefing then S.BriefingSeconds else S.ElevatorRideTime, briefing)
-		task.delay(1.3, function()
-			local member = Crew.get(player)
-			if not member or not player.Parent or phase ~= "Case" then
+		local briefing = fresh and profile ~= nil and profile.Shifts < 2
+		local seconds = if briefing then S.BriefingSeconds else S.ElevatorRideTime
+		longest = math.max(longest, seconds)
+		member.Riding = true
+		Crew.setAnchored(player, true) -- they cannot see: do not let them wander
+		Remotes.ToClient:FireClient(player, "Elevator", seconds, briefing)
+		-- step out of the lift just as the screen comes back, never while it is still black
+		task.delay(seconds - 0.6, function()
+			member.Riding = false
+			if not player.Parent or Crew.get(player) ~= member then
+				return
+			end
+			Crew.setAnchored(player, false)
+			if phase ~= "Case" then
+				toast(player, "THE LIFT STOPPED. THE CASE UPSTAIRS IS OVER.", "info")
 				return
 			end
 			-- going back up after being admitted: allowed, but on your last heart
@@ -510,6 +545,10 @@ local function descend(riders: { Player })
 			end
 		end)
 	end
+	if fresh then
+		-- HUSH stays on its dock until the first crew has had time to arrive and look around
+		wakeAt = os.clock() + longest + S.GracePeriod
+	end
 end
 
 -- Sends a crew up. Starts a new case on the chosen difficulty if none is running,
@@ -521,19 +560,20 @@ function Shift.begin(players: { Player }, chosenDifficulty: string?): boolean
 		end
 		return false
 	end
-	if phase == "Idle" then
+	local fresh = phase == "Idle"
+	if fresh then
 		difficultyKey = if chosenDifficulty and Config.Difficulties[chosenDifficulty] then chosenDifficulty else "Normal"
 		difficulty = Config.Difficulties[difficultyKey]
 		startShift()
 	end
-	descend(players)
+	descend(players, fresh)
 	return true
 end
 
 -- May this player use the lobby circles right now?
 function Shift.inLobby(player: Player): boolean
 	local member = Crew.get(player)
-	return member ~= nil and not member.InShift
+	return member ~= nil and not member.InShift and not member.Riding
 end
 
 function Shift.onEnded(callback: () -> ())
@@ -580,7 +620,8 @@ local function step(dt: number)
 			end
 		end
 	end
-	if #Crew.inPlay() == 0 and os.clock() - startedAt > 4 then
+	-- nobody left on the ward and nobody on the way up: the case is over
+	if #Crew.inPlay() == 0 and not anyRiding() and os.clock() - startedAt > 4 then
 		endShift()
 	end
 end
@@ -599,9 +640,11 @@ end
 
 local function scanTargets(): { Instance }
 	local targets: { Instance } = {}
-	for _, station in facility.Stations do
-		if station.Left > 0 then
-			table.insert(targets, station.Root)
+	if phase == "Case" then -- stations are shut once the evidence is all sent
+		for _, station in facility.Stations do
+			if station.Left > 0 then
+				table.insert(targets, station.Root)
+			end
 		end
 	end
 	for _, cabinet in facility.Cabinets do
@@ -637,7 +680,8 @@ local function registerGrants()
 		return true
 	end)
 	Store.registerGrant("DeadAir", function(player)
-		if phase ~= "Case" and phase ~= "Return" then
+		-- once it is enraged it hunts without listening: a sedative would do nothing
+		if (phase ~= "Case" and phase ~= "Return") or Fawn.enraged() or Fawn.state() == "Dormant" then
 			return false
 		end
 		Fawn.setDeadAir(os.clock() + Config.Fawn.DeadAirSeconds)
@@ -695,6 +739,9 @@ local function offer(player: Player, kind: string)
 	elseif kind == "DeadAir" then
 		if Fawn.state() == "Dormant" then
 			toast(player, "IT IS NOT LISTENING. YET.", "store")
+			return
+		elseif Fawn.enraged() then
+			toast(player, "IT IS PAST HEARING. NOTHING WILL CALM IT NOW.", "store")
 			return
 		end
 	end
@@ -799,7 +846,8 @@ local function onMessage(player: Player, name: any, a: any)
 	elseif name == "Struggle" then
 		-- one message per tap while it has you
 		if member.Grabbed and member.BreakFrees > 0 then
-			member.GrabProgress = math.min(1, member.GrabProgress + 1 / S.BreakFreeTaps)
+			local taps = math.floor(member.GrabProgress * S.BreakFreeTaps + 0.5) + 1
+			member.GrabProgress = math.min(1, taps / S.BreakFreeTaps)
 			player:SetAttribute("GrabProgress", member.GrabProgress)
 		end
 	elseif name == "Photo" then

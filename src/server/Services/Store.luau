@@ -98,6 +98,11 @@ function Store.prompt(player: Player, kind: string)
 		end
 		return
 	end
+	if not Data.isLoaded(player) then
+		-- the receipt could not be recorded, so do not take the Robux in the first place
+		toast(player, "Your save has not loaded yet. Try again in a moment.")
+		return
+	end
 	MarketplaceService:PromptProductPurchase(player, product.Id)
 end
 
@@ -145,13 +150,18 @@ local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseD
 		end
 		toast(player, "That could not be used right now. An adrenaline shot has been kept for you instead — it will save you once, automatically.")
 	end
+	-- Record it, then confirm the save before telling Roblox it is settled. If the save
+	-- fails Roblox offers the receipt again; hasPurchase() above stops a second grant.
 	Data.recordPurchase(player, purchaseId)
-	task.spawn(Data.save, player)
+	if not Data.save(player) then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end
 
 local function loadPasses(player: Player)
 	owned[player] = {}
+	player:SetAttribute("PassesLoaded", false)
 	for key, pass in Config.Passes do
 		player:SetAttribute("Pass_" .. key, false)
 		if pass.Id ~= 0 then
@@ -163,6 +173,7 @@ local function loadPasses(player: Player)
 			end
 		end
 	end
+	player:SetAttribute("PassesLoaded", true)
 end
 
 local function fetchPrices()

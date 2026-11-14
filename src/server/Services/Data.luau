@@ -122,20 +122,25 @@ function Data.get(player: Player): Profile?
 	return profiles[player]
 end
 
-function Data.save(player: Player)
+-- Writes the profile. Returns true only if the DataStore confirmed it.
+function Data.save(player: Player): boolean
 	local profile = profiles[player]
 	-- never overwrite real data with a profile that failed to load
 	if not profile or not store or not loaded[player] then
-		return
+		return false
 	end
-	pcall(function()
+	local saved = pcall(function()
 		(store :: DataStore):SetAsync(key(player), profile, { player.UserId })
 	end)
+	if not saved then
+		return false
+	end
 	if board and profile.Escapes > 0 then
 		pcall(function()
 			(board :: OrderedDataStore):SetAsync(tostring(player.UserId), profile.Escapes)
 		end)
 	end
+	return true
 end
 
 function Data.release(player: Player)

@@ -235,6 +235,8 @@ local handlers: { [string]: (...any) -> () } = {
 		elevatorSound:Play()
 		Vhs.fade(true, 1.2)
 		Hud.toast("GOING UP...", "info")
+		-- if the teleport never happens, never leave the player on a black screen
+		task.delay(15, Vhs.fade, false, 1)
 	end,
 	TeleportFailed = function()
 		Vhs.fade(false, 0.6)
@@ -273,6 +275,18 @@ end)
 player:GetAttributeChangedSignal("HeardAt"):Connect(function()
 	if player:GetAttribute("InShift") and not player:GetAttribute("Hunted") then
 		Hud.banner(Lore.Banners.Hears[1], Lore.Banners.Hears[2], "bad")
+	end
+end)
+
+-- However a grab ends (even by lockdown, or leaving), the camera comes back.
+player:GetAttributeChangedSignal("Grabbed"):Connect(function()
+	if player:GetAttribute("Grabbed") ~= true then
+		releaseCamera()
+	end
+end)
+player:GetAttributeChangedSignal("InShift"):Connect(function()
+	if player:GetAttribute("InShift") ~= true then
+		releaseCamera()
 	end
 end)
 

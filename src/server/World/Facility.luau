@@ -407,14 +407,14 @@ local function buildSetPieces(map: Grid.Map, folder: Folder, facility: Facility)
 		facility.ElevatorPosition = mid
 		-- the car: steel floor, three walls, open toward the lobby (-Z)
 		Build.block(props, "CarFloor", Vector3.new(sx, 0.2, sz), CFrame.new(mid + Vector3.new(0, 0.1, 0)), C_STEEL, Enum.Material.DiamondPlate)
-		Build.block(props, "CarBack", Vector3.new(sx, CEIL, 0.4), CFrame.new(mid + Vector3.new(0, CEIL / 2, sz / 2 - 0.2)), C_STEEL, Enum.Material.Metal)
+		Build.block(props, "CarBack", Vector3.new(sx, CEIL, 0.4), CFrame.new(mid + Vector3.new(0, CEIL / 2, sz / 2 - 0.2)), C_STEEL, Enum.Material.Metal, { Group = Build.Groups.Props })
 		for _, side in { -1, 1 } do
-			Build.block(props, "CarSide", Vector3.new(0.4, CEIL, sz), CFrame.new(mid + Vector3.new(side * (sx / 2 - 0.2), CEIL / 2, 0)), C_STEEL, Enum.Material.Metal)
+			Build.block(props, "CarSide", Vector3.new(0.4, CEIL, sz), CFrame.new(mid + Vector3.new(side * (sx / 2 - 0.2), CEIL / 2, 0)), C_STEEL, Enum.Material.Metal, { Group = Build.Groups.Props })
 			Build.block(props, "CarRail", Vector3.new(0.3, 0.3, sz - 2), CFrame.new(mid + Vector3.new(side * (sx / 2 - 0.6), 3.6, 0)), C_TRIM, Enum.Material.Metal, { CanCollide = false })
 		end
 		local header = Build.block(props, "CarHeader", Vector3.new(sx, 1.6, 0.4), CFrame.new(mid + Vector3.new(0, CEIL - 0.8, -sz / 2)), Color3.fromRGB(18, 20, 20), Enum.Material.Metal, { CanCollide = false })
 		facility.ElevatorLabel = Build.sign(header, Enum.NormalId.Front, "ELEVATOR RECALLED — SEND THE EVIDENCE FIRST", Config.Fonts.Mono, { TextColor = C_RED, LightInfluence = 0, Brightness = 1.3 })
-		local lamp = Build.block(props, "CarLamp", Vector3.new(3, 0.3, 3), CFrame.new(mid + Vector3.new(0, CEIL - 0.2, 0)), C_RED, Enum.Material.Neon, { CanCollide = false })
+		local lamp = Build.block(props, "CarLamp", Vector3.new(3, 0.3, 3), CFrame.new(mid + Vector3.new(0, CEIL - 0.2, 0)), C_RED, Enum.Material.Neon, { CanCollide = false, CastShadow = false })
 		local light = Build.pointLight(lamp, C_RED, 0.9, 26, true)
 		facility.ElevatorLamp = lamp
 		table.insert(facility.Fixtures, { Part = lamp, Light = light, Dead = false, Emergency = true })
