@@ -159,7 +159,7 @@ local function applyLayout()
 		return
 	end
 	touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-	local scale = Layout.scale(size.Y)
+	local scale = Layout.scale(size.Y, touch)
 	rootScale.Scale = scale
 	root.Size = UDim2.fromScale(1 / scale, 1 / scale) -- so that, once scaled, it exactly fills the screen
 	local rects = Layout.rects(size.X / scale, size.Y / scale, touch)
@@ -326,6 +326,7 @@ end
 
 -- "MERIDIAN GENERAL HOSPITAL - WARD C": the card when you step out of the lift.
 function Hud.locationCard(title: string, sub: string)
+	modal(true)
 	local overlay = Theme.screen("HS_Card", 85)
 	local box = Theme.frame(overlay, "Box", UDim2.fromOffset(900, 110), UDim2.fromScale(0.5, 0.42), DARK, 1)
 	box.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -348,6 +349,7 @@ function Hud.locationCard(title: string, sub: string)
 		TweenService:Create(s, TweenInfo.new(1), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
 		task.wait(1.1)
 		overlay:Destroy()
+		modal(false)
 	end)
 end
 
@@ -359,7 +361,7 @@ function Hud.briefing()
 	-- a fixed 920x440 "screen" that is scaled as one piece, so lines never re-wrap
 	local screen = Theme.frame(overlay, "Screen", UDim2.fromOffset(920, 440), UDim2.fromScale(0.5, 0.5), DARK, 1)
 	screen.AnchorPoint = Vector2.new(0.5, 0.5)
-	Theme.fit(screen, 540, 980)
+	Theme.fit(screen, 600, 980) -- 440 of 600: always leaves a band above it for the skip button
 	line(screen, "Play", UDim2.fromOffset(200, 18), UDim2.fromOffset(0, 0), F.Osd, 12, C.Osd, "PLAY >")
 	local counter = line(screen, "Counter", UDim2.fromOffset(200, 18), UDim2.new(1, -200, 0, 0), F.Osd, 12, C.Osd, "SP 0:00")
 	counter.TextXAlignment = Enum.TextXAlignment.Right
@@ -370,7 +372,7 @@ function Hud.briefing()
 	body.LineHeight = 1.9
 	local warning = line(screen, "Warning", UDim2.new(1, 0, 0, 60), UDim2.fromOffset(0, 360), F.Display, 56, Color3.fromRGB(255, 70, 60), "")
 	warning.TextXAlignment = Enum.TextXAlignment.Center
-	local skip = Theme.button(overlay, "Skip", UDim2.fromOffset(120, 30), UDim2.new(1, -144, 1, -54), "SKIP >>")
+	local skip = Theme.button(overlay, "Skip", UDim2.fromOffset(120, 28), UDim2.new(1, -136, 0, 8), "SKIP >>")
 	skip.Modal = true
 	local done = false
 	local function finish()
@@ -476,12 +478,12 @@ function Hud.intro(first: boolean, onDone: () -> ())
 	local back = Theme.frame(overlay, "Back", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(0, 0, 0), 0)
 	local stage = Theme.frame(overlay, "Stage", UDim2.fromOffset(900, 420), UDim2.fromScale(0.5, 0.5), DARK, 1)
 	stage.AnchorPoint = Vector2.new(0.5, 0.5)
-	Theme.fit(stage, 520, 960)
+	Theme.fit(stage, 580, 960) -- 420 of 580: leaves a band above it for the skip button
 	local text = Theme.label(stage, "Text", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), F.Body, 24, C.Paper, "")
 	text.TextXAlignment = Enum.TextXAlignment.Center
 	text.TextYAlignment = Enum.TextYAlignment.Center
 	text.LineHeight = 1.3
-	local skip = Theme.button(overlay, "Skip", UDim2.fromOffset(120, 30), UDim2.new(1, -144, 1, -54), "SKIP >>")
+	local skip = Theme.button(overlay, "Skip", UDim2.fromOffset(120, 28), UDim2.new(1, -136, 0, 8), "SKIP >>")
 	local finished = false
 	local function finish()
 		if finished then
@@ -567,7 +569,7 @@ local function build()
 	-- objectives card, top right
 	local card = panel(root, "Objectives")
 	place("Card", card, true)
-	local tag = line(card, "Tag", UDim2.new(1, -24, 0, 12), UDim2.fromOffset(12, 8), F.Osd, 7, C.Amber, "CASE OBJECTIVES")
+	local tag = line(card, "Tag", UDim2.new(1, -24, 0, 12), UDim2.fromOffset(12, 8), F.Osd, 9, C.Amber, "CASE OBJECTIVES")
 	tag.TextXAlignment = Enum.TextXAlignment.Right
 	-- text takes the left of each row, pips the right: 8px squares, 5 of them = 60px
 	photoLine = line(card, "Photo", UDim2.new(1, -24 - 72, 0, 20), UDim2.fromOffset(12, 26), F.Body, T.Objective, C.Osd, "")
@@ -580,7 +582,7 @@ local function build()
 
 	local vitals = panel(root, "Vitals")
 	place("Vitals", vitals, true)
-	line(vitals, "Tag", UDim2.fromOffset(90, 12), UDim2.fromOffset(12, 9), F.Osd, 8, C.Osd, "VITALS")
+	line(vitals, "Tag", UDim2.fromOffset(90, 12), UDim2.fromOffset(12, 9), F.Osd, 9, C.Osd, "VITALS")
 	heartPips = pips(vitals, 5, 8, 14, true)
 	location = line(root, "Location", UDim2.fromOffset(10, 10), UDim2.fromOffset(0, 0), F.Body, 13, C.Amber, "")
 	location.TextXAlignment = Enum.TextXAlignment.Right
@@ -589,12 +591,12 @@ local function build()
 	-- noise meter
 	local noise = panel(root, "Noise")
 	place("Noise", noise, true)
-	line(noise, "Tag", UDim2.fromOffset(166, 12), UDim2.fromOffset(12, 8), F.Osd, 8, C.Osd, "NOISE METER")
+	line(noise, "Tag", UDim2.fromOffset(166, 12), UDim2.fromOffset(12, 8), F.Osd, 9, C.Osd, "NOISE METER")
 	for i = 1, 24 do
 		table.insert(noiseBars, Theme.frame(noise, "Bar", UDim2.fromOffset(4, 16), UDim2.fromOffset(12 + (i - 1) * 7, 26), C.Osd, 0.85))
 	end
 	for i, word in { "QUIET", "NORMAL", "LOUD" } do
-		local label = line(noise, word, UDim2.fromOffset(52, 10), UDim2.fromOffset(12 + (i - 1) * 56, 48), F.Osd, 6, if i == 3 then C.Rec else C.Osd, word)
+		local label = line(noise, word, UDim2.fromOffset(52, 10), UDim2.fromOffset(12 + (i - 1) * 56, 48), F.Osd, 7, if i == 3 then C.Rec else C.Osd, word)
 		label.TextTransparency = 0.4
 	end
 	local staminaBack
@@ -605,8 +607,8 @@ local function build()
 	local function slot(index: number, name: string, key: string): Frame
 		local frame = panel(root, "Slot" .. index)
 		place("Slot" .. index, frame, true)
-		line(frame, "Key", UDim2.fromOffset(24, 10), UDim2.fromOffset(6, 5), F.Osd, 7, C.Amber, key)
-		local label = line(frame, "Name", UDim2.new(1, -8, 0, 12), UDim2.fromOffset(4, 22), F.Osd, 8, C.Osd, name)
+		line(frame, "Key", UDim2.fromOffset(24, 10), UDim2.fromOffset(6, 5), F.Osd, 8, C.Amber, key)
+		local label = line(frame, "Name", UDim2.new(1, -8, 0, 12), UDim2.fromOffset(4, 22), F.Osd, 9, C.Osd, name)
 		label.TextXAlignment = Enum.TextXAlignment.Center
 		table.insert(slots, frame)
 		return frame
@@ -673,12 +675,12 @@ local function build()
 	-- locker: hold your breath (takes the hotbar's place)
 	local lockerPanel = panel(root, "Locker")
 	place("Locker", lockerPanel)
-	lockerHint = line(lockerPanel, "Hint", UDim2.new(1, -24, 0, 22), UDim2.fromOffset(12, 8), F.Body, 16, C.Osd, "")
+	lockerHint = line(lockerPanel, "Hint", UDim2.new(1, -24, 0, 20), UDim2.fromOffset(12, 6), F.Body, 16, C.Osd, "")
 	lockerHint.TextXAlignment = Enum.TextXAlignment.Center
 	local _breathBack
-	_breathBack, breathFill = bar(lockerPanel, "Breath", UDim2.new(1, -40, 0, 8), UDim2.fromOffset(20, 40), C.Phosphor)
-	local breathButton = Theme.button(lockerPanel, "Hold", UDim2.fromOffset(160, 34), UDim2.fromOffset(14, 64), "HOLD BREATH")
-	local exitButton = Theme.button(lockerPanel, "Exit", UDim2.fromOffset(160, 34), UDim2.fromOffset(186, 64), "GET OUT [E]")
+	_breathBack, breathFill = bar(lockerPanel, "Breath", UDim2.new(1, -40, 0, 8), UDim2.fromOffset(20, 32), C.Phosphor)
+	local breathButton = Theme.button(lockerPanel, "Hold", UDim2.fromOffset(160, 34), UDim2.fromOffset(14, 50), "HOLD BREATH")
+	local exitButton = Theme.button(lockerPanel, "Exit", UDim2.fromOffset(160, 34), UDim2.fromOffset(186, 50), "GET OUT [E]")
 	breathButton.MouseButton1Down:Connect(function()
 		send("HoldBreath", true)
 	end)

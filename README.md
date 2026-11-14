@@ -104,21 +104,49 @@ How purchases are presented:
 src/shared     Config (all tuning, ids, fonts) · MapData (ASCII level) · Grid (A*, line of sight) · Lore · Remotes · Sfx
 src/server     World/  Facility, Furnish, Lobby, FawnRig, Build — everything is built from parts at runtime
                Services/  Parties (lobby circles) · Shift (the case) · Fawn (HUSH's AI) · Crew · Store (Robux) · Data (saves, XP)
-src/client     UI/  Hud, PartyUi, Vhs overlay, Theme     Controllers/  Camcorder, Flashlight, Movement, Atmosphere, FawnAnimator, Prompts
-tools/         typecheck (offline Luau analysis + map tests) · audio (the synthesizer) · build_place.py · render_map.py
+src/client     UI/  Layout (every HUD position), Hud, PartyUi, Vhs overlay, Theme     Controllers/  Camcorder, Flashlight, Movement, Atmosphere, FawnAnimator, Prompts, Chat
+tools/         typecheck (Luau analysis, map and layout tests) · audio (the synthesizer) · fonts · build_place.py · render_map.py · render_hud.py · check_text.py
 ```
 
 The level is the ASCII grid in `MapData.luau`; rooms are furnished automatically from their `Kind`. A new chapter is a new grid, a new `Lore` table and a new subject.
 
 ### Checking changes without Studio
 
+Type-check every script against Roblox's API:
+
 ```bash
 cd tools/typecheck && npm install && npm run defs && npm run check
 ```
 
+Prove every objective on the map is reachable:
+
 ```bash
 node tools/typecheck/test-grid.mjs
 ```
+
+Prove no two HUD elements overlap at 12 phone, tablet and desktop sizes:
+
+```bash
+node tools/typecheck/test-layout.mjs
+```
+
+Measure every fixed line of HUD text against its box with the real fonts:
+
+```bash
+python3 tools/check_text.py
+```
+
+Redraw the ward map and the HUD layout diagram (both refuse to render if any text overlaps anything):
+
+```bash
+python3 tools/render_map.py && python3 tools/render_hud.py
+```
+
+## The screen
+
+![HUD layout](docs/hud-layout.png)
+
+This is a diagram generated from the game's own layout table (`src/client/UI/Layout.luau`) with the game's typefaces — not a screenshot. Three typefaces, each with one job: **Creepster** for event lines, titles and anything HUSH says; **Special Elite** (a worn typewriter) for everything you read; **Press Start 2P** only for tiny camcorder tags. Phones get their own arrangement with larger type; Roblox's chat window is kept in its own column so it never covers the HUD; full-screen panels hide the HUD while they are open.
 
 ## A note on looks
 

@@ -74,6 +74,10 @@ function Movement.init()
 		if not humanoid or not camera then
 			return
 		end
+		if humanoid:GetStateEnabled(Enum.HumanoidStateType.Jumping) then
+			-- no jumping in this game; turning the state off here also hides the mobile jump button
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+		end
 		local inShift = player:GetAttribute("InShift") == true
 		player.CameraMode = if inShift then Enum.CameraMode.LockFirstPerson else Enum.CameraMode.Classic
 

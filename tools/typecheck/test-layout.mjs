@@ -28,7 +28,7 @@ local function enc(v)
 end
 local out = {}
 for _, s in SCREENS do
-  local scale = Layout.scale(s[3])
+  local scale = Layout.scale(s[3], s[4])
   table.insert(out, { name = s[1], scale = scale, w = s[2] / scale, h = s[3] / scale, touch = s[4], rects = Layout.rects(s[2] / scale, s[3] / scale, s[4]) })
 end
 return enc({ screens = out, states = Layout.States, inside = Layout.Inside, buttons = Layout.TouchButtons, buttonSize = Layout.TouchButtonSize, text = Layout.Text })
