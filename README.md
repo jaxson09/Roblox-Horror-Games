@@ -30,6 +30,7 @@ What is new here:
 
 1. Install [Rokit](https://github.com/rojo-rbx/rokit), then `rokit install` in this folder.
 2. `rojo build -o HollowSignal.rbxl` and open it in Studio, or `rojo serve` and connect with the Rojo plugin.
+   No Rojo? `python3 tools/build_place.py` writes `HollowSignal.rbxlx` from the same sources.
 3. In Studio: **Game Settings → Security → Enable Studio Access to API Services** (for saves), and confirm **Workspace.StreamingEnabled is off** (the project file sets it; the live-sync plugin cannot).
 4. Press Play. The whole world is generated from code at server start.
 
