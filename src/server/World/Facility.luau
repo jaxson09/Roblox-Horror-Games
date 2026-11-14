@@ -336,7 +336,7 @@ function Facility.buildDispenser(parent: Instance, cf: CFrame, kind: string): (P
 	local label = Build.block(parent, "DispenserLabel", Vector3.new(3, 0.9, 0.1), cf * CFrame.new(0, 3.85, -0.65), Color3.fromRGB(24, 28, 28), Enum.Material.Metal, { CanCollide = false })
 	Build.sign(label, Enum.NormalId.Front, string.upper(product.Name), Config.Fonts.Mono, { TextColor = tint, LightInfluence = 0.1, Brightness = 1.2 })
 	Build.block(parent, "DispenserTray", Vector3.new(2.2, 0.3, 0.8), cf * CFrame.new(0, 2.5, -1), Color3.fromRGB(40, 44, 44), Enum.Material.Metal, { CanCollide = false })
-	Sfx.make(body, "Effigy", { Volume = 0.25, Looped = true, MaxDistance = 24 }):Play()
+	Sfx.make(body, "Dispenser", { Volume = 0.25, Looped = true, MaxDistance = 24 }):Play()
 	local prompt = Build.prompt(body, product.Name, "Dispense", 0.5, 7)
 	prompt:SetAttribute("Product", kind)
 	return body, prompt

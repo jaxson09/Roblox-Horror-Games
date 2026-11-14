@@ -16,7 +16,7 @@ export type Map = {
 	Floor: { string }, -- idx -> floor character ("" for solid cells)
 	Markers: { [string]: { number } }, -- character -> list of idx
 	Closed: { [number]: boolean }, -- idx -> true when a door cell is shut
-	Sealed: { [number]: boolean }, -- idx -> true when FAWN may not pass (locked doors)
+	Sealed: { [number]: boolean }, -- idx -> true when HUSH may not pass (locked doors)
 	CellSize: number,
 	OriginX: number,
 	OriginZ: number,
@@ -151,7 +151,7 @@ function Grid.parse(rows: { string }, cellSize: number, originX: number, originZ
 	return map
 end
 
--- True when a mount marker (locker/effigy) replaced a wall cell.
+-- True when a mount marker (locker, tube station, dispenser) replaced a wall cell.
 function Grid.isAlcove(map: Map, idx: number): boolean
 	return MOUNT_CHARS[map.Cells[idx]] == true and map.Floor[idx] == ""
 end
@@ -207,7 +207,7 @@ function Grid.isWalkable(map: Map, cx: number, cy: number): boolean
 	return not (MOUNT_CHARS[ch] or BLOCK_CHARS[ch])
 end
 
--- Can FAWN route through this cell right now?
+-- Can HUSH route through this cell right now?
 function Grid.isPassable(map: Map, cx: number, cy: number): boolean
 	if not Grid.isWalkable(map, cx, cy) then
 		return false

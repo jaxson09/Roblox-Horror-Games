@@ -205,15 +205,13 @@ def chase_theme():
 def alarm_loop():
     dur = 2.4; tt = t(dur); f = 430 + 190 * ((tt % 1.2) / 1.2)
     return norm(loopable(reverb(drive(saw(f, 20) * ((tt % 1.2) < 0.95), 2), 1.5, 0.3, tail=False), 0.2), 0.7)
-def effigy_whisper():
-    dur = 7.0; y = np.zeros(int(dur * SR))
-    for k in range(4):
-        w = formant(noise(dur), [(rng.uniform(1500, 2500), 300, 1), (rng.uniform(3500, 5000), 500, 0.6)], 0)
-        gate = np.clip(filt(rng.uniform(-1, 1, len(w)), hi=rng.uniform(4, 7), order=2) * 14, 0, 1)
-        y += w * gate
-    for at in rng.uniform(0, dur - 0.3, 7): mixin(y, clank(0.2, [1900, 2740, 3310], 0.03), at, 0.5)
-    return norm(loopable(reverb(y, 2.2, 0.4, tail=False), 1.0), 0.55)
-
+def dispenser_hum():
+    dur = 6.0; tt = t(dur)
+    y = saw(np.full(len(tt), 60.0), 12) * 0.5 + tone(120, dur) * 0.25 + tone(180, dur) * 0.08  # an old refrigerated cabinet
+    y = filt(y, hi=700, order=2) * (0.9 + 0.1 * np.sin(2 * np.pi * 0.4 * tt))
+    y += filt(noise(dur), lo=3000, hi=9000, order=2) * 0.03                                   # the lit window buzzing
+    for at in (1.3, 4.1): mixin(y, clank(0.08, [2400, 3900], 0.01), at, 0.25)                  # a relay ticking over
+    return norm(loopable(y, 0.6), 0.5)
 # --------------------------------------------------------------------------- world one-shots
 def scrape(sec, f1, f2, g=1.0):
     y = formant(noise(sec), [(f1, 60, 1), (f1 * 2.7, 120, 0.6), (f2, 200, 0.4)], 0.01) * (0.6 + 0.4 * np.sin(2 * np.pi * 23 * t(sec)))
@@ -274,7 +272,7 @@ SOUNDS = {
     "fawn_shriek": lambda: shriek_cache, "fawn_step": step, "fawn_idle_loop": idle_loop, "fawn_mimic_1": lambda: mimic(5), "fawn_mimic_2": lambda: mimic(9),
     "jumpscare": jumpscare, "sting_low": sting, "static_loop": static_loop, "heartbeat_loop": heartbeat_loop, "bunker_drone": bunker_drone,
     "forest_night": forest_night, "lobby_theme": lobby_theme, "chase_theme": chase_theme, "alarm_loop": alarm_loop,
-    "effigy_whisper": effigy_whisper, "door_open": door_open, "door_close": door_close, "door_slam": door_slam, "locker": locker,
+    "dispenser_hum": dispenser_hum, "door_open": door_open, "door_close": door_close, "door_slam": door_slam, "locker": locker,
     "pickup": pickup, "elevator": elevator, 
     "camera_shutter": camera_shutter, "tube_send": tube_send, "power_down": power_down, "grab": grab_sting,
     "light_flicker": light_flicker, "flashlight_click": flashlight_click, "ui_blip": ui_blip, "ui_type": ui_type, "tape_start": tape_start, "breath_gasp": breath_gasp,

@@ -1,7 +1,7 @@
 --!strict
 --[[
 	Flashlight — a handheld beam that follows the camera with a little lag.
-	It lets you see; it also lets FAWN see you from much farther away. Held
+	It lets you see; it also lets HUSH see you from much farther away. Held
 	steady in its eye at close range, it whites out the optic for a moment.
 	N toggles Camcorder Night Mode for owners of that pass.
 ]]

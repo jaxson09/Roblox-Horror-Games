@@ -1,7 +1,7 @@
 --!strict
 --[[
 	Vhs — the camcorder layer over everything: scanlines, vignette, a rolling
-	tracking bar, static that thickens as FAWN's carrier signal gets closer,
+	tracking bar, static that thickens as HUSH's carrier signal gets closer,
 	and the fade-to-black used by cuts. Built from plain frames, so it needs no
 	image assets (set Config.Images.Noise to use a real noise texture instead).
 ]]
@@ -134,7 +134,7 @@ function Vhs.init()
 	end)
 end
 
--- Steady static level (0..1), e.g. from FAWN's proximity.
+-- Steady static level (0..1), e.g. from HUSH's proximity.
 function Vhs.setStatic(amount: number)
 	baseStatic = math.clamp(amount, 0, 1)
 end

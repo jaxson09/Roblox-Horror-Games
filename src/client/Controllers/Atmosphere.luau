@@ -18,7 +18,7 @@ local Vhs = require(script.Parent.Parent.UI.Vhs)
 local Atmosphere = {}
 
 Atmosphere.NightVision = false -- set by Flashlight
-Atmosphere.Dread = 0 -- 0..1, set by FawnAnimator from FAWN's distance
+Atmosphere.Dread = 0 -- 0..1, set by FawnAnimator from HUSH's distance
 Atmosphere.Chased = false -- set by FawnAnimator
 Atmosphere.PowerOut = false -- set when the ward loses power on the way out
 

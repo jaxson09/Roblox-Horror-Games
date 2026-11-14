@@ -3,12 +3,12 @@
 	Store — every Robux purchase in the game goes through here.
 
 	Design rules (they are also Roblox policy):
-	  * Purchases are diegetic — an effigy, a key in a cage, a siren, a shelf —
+	  * Purchases are diegetic — a medication dispenser, a PA handset, a shelf —
 	    but the prompt always names the item and shows the real, live price,
 	    and Roblox's own purchase dialog confirms it. Nothing is disguised.
 	  * Nothing is ever sold that would do nothing (no "free everyone" when
 	    nobody is caged), and a purchase that cannot be applied the moment it
-	    lands is banked as a Rusted Key instead of being lost.
+	    lands is banked as an adrenaline shot instead of being lost.
 	  * Developer product grants are idempotent on PurchaseId.
 ]]
 

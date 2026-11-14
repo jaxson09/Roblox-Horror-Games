@@ -1,7 +1,7 @@
 --!strict
 --[[
 	Movement — walk / sprint / crouch with stamina, first-person lock below
-	ground, head bob and FOV kick. Speed is what FAWN hears, so the choice
+	ground, head bob and FOV kick. Speed is what HUSH hears, so the choice
 	between walking and running is the whole game.
 ]]
 

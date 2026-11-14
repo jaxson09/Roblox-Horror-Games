@@ -2,7 +2,7 @@
 --[[
 	FawnAnimator — brings the rig to life on each client with procedural
 	joint motion (no animation assets): a hunched, long-armed walk, head
-	tics, the thrown-back howl, the lunge. Also turns FAWN's distance into
+	tics, the thrown-back howl, the lunge. Also turns HUSH's distance into
 	dread: static, heartbeat, the tracker needle, the red at the edges.
 ]]
 

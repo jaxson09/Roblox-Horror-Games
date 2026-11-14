@@ -44,12 +44,12 @@ Config.Player = {
 	BatterySeconds = 210, -- full battery, light on
 	BatteryPassMultiplier = 2,
 	BatteryPickup = 0.5, -- fraction restored per battery
-	DazzleRange = 26, -- shine in FAWN's eye inside this range...
+	DazzleRange = 26, -- shine in HUSH's eye inside this range...
 	DazzleTime = 1.1, -- ...for this long to stagger it
 	DazzleCooldown = 22,
 	DazzleBatteryCost = 0.15,
 
-	-- Noise (0..1) by movement type; FAWN hears at Noise * HearRadius studs.
+	-- Noise (0..1) by movement type; HUSH hears at Noise * HearRadius studs.
 	NoiseCrouch = 0.1,
 	NoiseWalk = 0.42,
 	NoiseSprint = 1.0,
@@ -133,7 +133,7 @@ Config.Fawn = {
 	LoseTargetAfter = 3.2, -- seconds without sight before it starts searching
 	SearchSeconds = 9,
 	LockerSniffRange = 11,
-	LockerFoundAfter = 1.4, -- seconds of audible breathing next to FAWN
+	LockerFoundAfter = 1.4, -- seconds of audible breathing next to HUSH
 	StaggerSeconds = 2.2,
 	HowlEvery = { 28, 55 }, -- ambient howls while patrolling
 	MimicEvery = { 38, 70 },
@@ -208,7 +208,7 @@ Config.Sounds = {
 	Locker = 0, -- locker.ogg
 	Pickup = 0, -- pickup.ogg
 	Elevator = 0, -- elevator.ogg
-	Effigy = 0, -- effigy_whisper.ogg
+	Dispenser = 0, -- dispenser_hum.ogg
 	LightFlicker = 0, -- light_flicker.ogg
 	-- player / ui
 	FlashlightClick = 0, -- flashlight_click.ogg
