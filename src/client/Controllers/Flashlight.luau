@@ -31,7 +31,7 @@ local click: Sound
 local dazzle = 0
 
 local function usable(): boolean
-	return player:GetAttribute("InShift") == true and not player:GetAttribute("Hidden") and not player:GetAttribute("Caged")
+	return player:GetAttribute("InShift") == true and not player:GetAttribute("Hidden") and not player:GetAttribute("Grabbed")
 end
 
 local function set(value: boolean)
@@ -136,6 +136,7 @@ function Flashlight.init()
 		local battery = Theme.num(player, "Battery", 1)
 		local wide = player:GetAttribute("Pass_Flashlight") == true
 		beam.Enabled = on
+		Hud.LightOn = on
 		fill.Enabled = on
 		beam.Angle = if wide then 68 else 52
 		-- a dying battery gutters

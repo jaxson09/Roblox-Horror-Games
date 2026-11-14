@@ -94,7 +94,7 @@ function Store.prompt(player: Player, kind: string)
 				toast(player, `[STUDIO] {product.Name} granted free — set Config.Products.{kind}.Id to sell it`)
 			end
 		else
-			toast(player, "The effigy does not answer. (Not for sale yet.)")
+			toast(player, "The dispenser is empty. (Not for sale yet.)")
 		end
 		return
 	end
@@ -143,7 +143,7 @@ local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseD
 		if not Data.addKeys(player, 1) then
 			return Enum.ProductPurchaseDecision.NotProcessedYet
 		end
-		toast(player, "The offering could not be used right now. A Rusted Key has been kept for you instead.")
+		toast(player, "That could not be used right now. An adrenaline shot has been kept for you instead — it will save you once, automatically.")
 	end
 	Data.recordPurchase(player, purchaseId)
 	task.spawn(Data.save, player)

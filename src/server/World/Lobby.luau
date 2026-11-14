@@ -1,10 +1,10 @@
 --!strict
 --[[
-	Lobby — the surface level of Marrow Creek Relay: a long, half-lit intake
-	hall. Everyone loads in at the sealed entrance and walks the length of it.
-	At the far end, in front of four freight elevator doors, are the circles
-	where crews form (see Services/Parties). The supply shelf is on the left
-	wall partway down: you pass it, it does not jump at you.
+	Lobby — the old admissions hall of Meridian General, where Hollow Signal
+	has set up for the night. Everyone loads in at the chained entrance and
+	walks the length of it. At the far end, in front of four lift doors, are
+	the circles where crews form (see Services/Parties). The supply shelf is on
+	the left wall partway down: you pass it, it does not jump at you.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -25,6 +25,7 @@ export type Lobby = {
 	ReturnCFrame: CFrame,
 	ShopItems: { ShopItem },
 	SirenPrompt: ProximityPrompt,
+	ShotPrompt: ProximityPrompt,
 	BoardLabel: TextLabel,
 	ElevatorSound: Sound,
 }
@@ -78,14 +79,14 @@ local function buildShell(hall: Folder)
 	Build.sign(exit, Enum.NormalId.Front, "NO EXIT", Config.Fonts.Sign, { TextColor = Color3.fromRGB(140, 255, 160), LightInfluence = 0, Brightness = 1.2 })
 	Build.pointLight(exit, Color3.fromRGB(120, 255, 150), 0.5, 16)
 	local scrawl = Build.block(hall, "Scrawl", Vector3.new(0.2, 3, 16), CFrame.new(X2 - 0.2, 10.5, 34), CONCRETE, Enum.Material.Concrete, { Transparency = 1, CanCollide = false })
-	Build.sign(scrawl, Enum.NormalId.Left, "IT KNOWS YOUR NAME", Config.Fonts.Scrawl, { TextColor = Color3.fromRGB(130, 18, 18) })
+	Build.sign(scrawl, Enum.NormalId.Left, "IT IS NOT ASKING", Config.Fonts.Scrawl, { TextColor = Color3.fromRGB(130, 18, 18) })
 end
 
 local function buildElevators(hall: Folder, lobby: Lobby)
 	local count = Config.Lobby.PadCount
 	local spacing = (X2 - X1) / count
 	local header = Build.block(hall, "AccessSign", Vector3.new(44, 2.4, 0.3), CFrame.new(0, 15.6, Z_FAR + 0.4), Color3.fromRGB(14, 14, 14), Enum.Material.Metal, { CanCollide = false })
-	Build.sign(header, Enum.NormalId.Back, "SUBLEVEL ACCESS  —  FORM YOUR CREW IN A CIRCLE", Config.Fonts.Sign, { TextColor = Config.Colors.Amber, LightInfluence = 0, Brightness = 1.3 })
+	Build.sign(header, Enum.NormalId.Back, "WARD C ELEVATORS  —  FORM YOUR CREW IN A CIRCLE", Config.Fonts.Sign, { TextColor = Config.Colors.Amber, LightInfluence = 0, Brightness = 1.3 })
 	for i = 1, count do
 		local x = X1 + spacing * (i - 0.5)
 		-- freight elevator door set into the far wall
@@ -93,7 +94,7 @@ local function buildElevators(hall: Folder, lobby: Lobby)
 		local doors = Build.block(hall, "ElevatorDoors", Vector3.new(9.4, 12, 0.4), CFrame.new(x, 6, Z_FAR + 0.7), Color3.fromRGB(44, 46, 50), Enum.Material.DiamondPlate)
 		Build.block(hall, "ElevatorSeam", Vector3.new(0.2, 12, 0.1), doors.CFrame * CFrame.new(0, 0, 0.25), DARK, Enum.Material.Metal, { CanCollide = false })
 		local plate = Build.block(hall, "ElevatorNumber", Vector3.new(5, 1.4, 0.2), CFrame.new(x, 13.9, Z_FAR + 0.7), Color3.fromRGB(14, 14, 14), Enum.Material.Metal, { CanCollide = false })
-		Build.sign(plate, Enum.NormalId.Back, string.format("FREIGHT %02d", i), Config.Fonts.Mono, { TextColor = Config.Colors.Amber, LightInfluence = 0, Brightness = 1.3 })
+		Build.sign(plate, Enum.NormalId.Back, string.format("LIFT %02d", i), Config.Fonts.Mono, { TextColor = Config.Colors.Amber, LightInfluence = 0, Brightness = 1.3 })
 		local beacon = Build.block(hall, "ElevatorBeacon", Vector3.new(0.9, 0.6, 0.9), CFrame.new(x, 15, Z_FAR + 1.2), RED, Enum.Material.Neon, { CanCollide = false })
 		Build.pointLight(beacon, RED, 1, 20)
 		CollectionService:AddTag(beacon, "HS_Beacon")
@@ -160,16 +161,17 @@ local function buildSupply(hall: Folder, lobby: Lobby)
 		prompt:SetAttribute("Pass", key)
 		table.insert(lobby.ShopItems, { Key = key, Prompt = prompt, Card = label })
 	end
-	-- what it left for the last ranger
-	Facility.buildSkull(hall, CFrame.new(X1 + 0.9, 9, z0 - 32) * CFrame.Angles(0, math.rad(-90), 0), 1.1)
+	-- a medication dispenser that still has power: adrenaline to take up with you
+	local _, shot = Facility.buildDispenser(hall, CFrame.new(X1 + 0.7, 0, z0 - 36) * CFrame.Angles(0, math.rad(-90), 0), "Revive")
+	lobby.ShotPrompt = shot
 end
 
 local function buildOffice(hall: Folder, lobby: Lobby)
 	-- right wall: the board of crews who came back, the rules, the duty desk
 	local board = Build.block(hall, "Board", Vector3.new(0.3, 7, 12), CFrame.new(X2 - 0.2, 6, 2), Color3.fromRGB(96, 74, 50), Enum.Material.Fabric)
-	lobby.BoardLabel = Build.sign(board, Enum.NormalId.Left, "CREWS WHO CAME BACK UP\n\n— no records yet —", Config.Fonts.Typewriter, { TextColor = Config.Colors.Ink, LightInfluence = 0.9, PixelsPerStud = 44, TextScaled = false, TextSize = 26, YAlign = Enum.TextYAlignment.Top })
+	lobby.BoardLabel = Build.sign(board, Enum.NormalId.Left, "INVESTIGATORS WHO CAME BACK\n\n— no records yet —", Config.Fonts.Typewriter, { TextColor = Config.Colors.Ink, LightInfluence = 0.9, PixelsPerStud = 44, TextScaled = false, TextSize = 26, YAlign = Enum.TextYAlignment.Top })
 	local rules = Build.block(hall, "Rules", Vector3.new(0.1, 4.6, 5), CFrame.new(X2 - 0.1, 6, 14), Config.Colors.Paper, Enum.Material.SmoothPlastic, { CanCollide = false })
-	Build.sign(rules, Enum.NormalId.Left, "NIGHT SHIFT RULES\n1. Walk. She comes to noise.\n2. Close doors behind you.\n3. In a locker, hold your breath.\n4. Count your crew. Then count again.", Config.Fonts.Typewriter, { TextColor = Config.Colors.Ink, LightInfluence = 0.9, PixelsPerStud = 44, XAlign = Enum.TextXAlignment.Left })
+	Build.sign(rules, Enum.NormalId.Left, "FIELD RULES\n1. Walk. It comes to noise.\n2. Shoot, then move. The flash is loud.\n3. In a locker, hold your breath.\n4. If it asks you a question, say nothing.", Config.Fonts.Typewriter, { TextColor = Config.Colors.Ink, LightInfluence = 0.9, PixelsPerStud = 44, XAlign = Enum.TextXAlignment.Left })
 	local desk = Build.block(hall, "Desk", Vector3.new(4, 3.2, 10), CFrame.new(X2 - 3, 1.6, 24), WOOD, Enum.Material.Wood)
 	local tv = Build.block(hall, "Television", Vector3.new(3, 2.8, 3.4), desk.CFrame * CFrame.new(0.2, 3, -2.4), Color3.fromRGB(60, 56, 50), Enum.Material.Plastic)
 	local screen = Build.block(hall, "TvScreen", Vector3.new(0.1, 2.2, 2.8), tv.CFrame * CFrame.new(-1.52, 0, 0), Color3.fromRGB(8, 14, 12), Enum.Material.Glass, { CanCollide = false })
@@ -183,8 +185,8 @@ local function buildOffice(hall: Folder, lobby: Lobby)
 	-- emergency broadcast handle on the nearest pillar: scares everyone on the server
 	local box = Build.block(hall, "Siren", Vector3.new(2.2, 2.6, 1), CFrame.new(15, 5, 37.9), Color3.fromRGB(150, 30, 26), Enum.Material.Metal)
 	local tag = Build.block(hall, "SirenTag", Vector3.new(2.6, 1.2, 0.1), box.CFrame * CFrame.new(0, -2.2, 0.5), Config.Colors.Paper, Enum.Material.SmoothPlastic, { CanCollide = false })
-	Build.sign(tag, Enum.NormalId.Back, "DO NOT CRANK.\nit answers.", Config.Fonts.Typewriter, { TextColor = Config.Colors.Ink })
-	lobby.SirenPrompt = Build.prompt(box, Config.Products.ScareAll.Name, "Crank the siren", 0.5, 8)
+	Build.sign(tag, Enum.NormalId.Back, "PA HANDSET\nCODE BLUE", Config.Fonts.Typewriter, { TextColor = Config.Colors.Ink })
+	lobby.SirenPrompt = Build.prompt(box, Config.Products.ScareAll.Name, "Page the building", 0.5, 8)
 	lobby.SirenPrompt:SetAttribute("Product", "ScareAll")
 end
 
@@ -197,6 +199,7 @@ function Lobby.build(parent: Instance): Lobby
 		ReturnCFrame = CFrame.lookAt(Vector3.new(0, 3.5, Z_NEAR - 14), Vector3.new(0, 3.5, Z_FAR)),
 		ShopItems = {},
 		SirenPrompt = nil :: any,
+		ShotPrompt = nil :: any,
 		BoardLabel = nil :: any,
 		ElevatorSound = nil :: any,
 	}

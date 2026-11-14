@@ -8,7 +8,7 @@
 local Config = {}
 
 Config.GameName = "HOLLOW SIGNAL"
-Config.Tagline = "IT LEARNED YOUR VOICE."
+Config.Tagline = "DO NOT ANSWER IT."
 Config.Version = "0.1.0"
 
 -- Set true to print AI/state transitions to the output window.
@@ -22,7 +22,7 @@ Config.World = {
 	CeilingHeight = 12,
 	DoorHeight = 11,
 	-- World position of map cell (0,0)'s outer corner; Y is the floor surface.
-	FacilityOrigin = Vector3.new(-188, -400, -128),
+	FacilityOrigin = Vector3.new(-180, -400, -124),
 	LobbyFloorY = 0,
 }
 
@@ -54,6 +54,12 @@ Config.Player = {
 	NoiseWalk = 0.42,
 	NoiseSprint = 1.0,
 
+	-- Camcorder: photographing the subject is the job
+	PhotoRange = 70,
+	PhotoCooldown = 4, -- seconds between your own shots
+	PhotoSpacing = 9, -- seconds between photos that count as new evidence
+	PhotoAim = 0.9, -- how centred the subject must be (dot product)
+
 	-- Lockers
 	BreathSeconds = 6.5,
 	BreathRecover = 0.55, -- seconds of breath regained per second
@@ -64,22 +70,22 @@ Config.Player = {
 ----------------------------------------------------------------------------
 Config.Shift = {
 	ElevatorRideTime = 7,
-	FusesNeeded = 3,
-	TapesNeeded = 4,
-	BatteriesSpawned = 7,
-	NotesSpawned = 5,
-	GracePeriod = 25, -- FAWN stays dormant this long after the first arrival
-	BroadcastSeconds = 80, -- time someone must hold the control room
-	RetuneEvery = { 14, 22 }, -- signal drifts and must be retuned at the console
-	EscapeSeconds = 150, -- lockdown timer once the blast door opens
+	BriefingSeconds = 21, -- a longer ride with the training tape, on your first two cases
+	PhotosNeeded = 5,
+	CanistersPerStation = 2, -- each tube station can only send this many
+	SendHold = 5, -- seconds to load and fire a canister
+	FilesHidden = 6, -- case files hidden in filing cabinets
+	BatteriesSpawned = 6,
+	GracePeriod = 22, -- HUSH does not move for this long after the first arrival
+	ReturnSeconds = 150, -- lockdown timer once the evidence is all sent
 	ResultsSeconds = 14,
-	CageSeconds = 70, -- time before a caged player is lost
-	FreeStruggles = 1, -- free self-rescues per shift
-	StruggleDelay = 8, -- seconds in the cage before you can struggle
-	StruggleHold = 6, -- seconds of holding to break out
-	RescueHold = 3.5, -- seconds a teammate holds to open a cage
-	MaxPlayersHint = 8,
+	GrabSeconds = 3.4, -- how long you have to break free
+	BreakFreeTaps = 14,
+	MaxPlayersHint = 6,
 }
+
+-- Experience awarded on the field report.
+Config.Xp = { Photo = 40, Sent = 60, File = 25, Escaped = 200, PerLevel = 300 }
 
 ----------------------------------------------------------------------------
 -- Lobby: crews form in the circles at the far end of the intake hall.
@@ -91,27 +97,27 @@ Config.Lobby = {
 	AutoStartSeconds = 15, -- countdown once a lobby is full
 }
 
-export type Difficulty = { Label: string, Blurb: string, Speed: number, Hearing: number, CageSeconds: number, FreeStruggles: number }
+export type Difficulty = { Label: string, Blurb: string, Speed: number, Hearing: number, Hearts: number, BreakFrees: number }
 
 Config.Difficulties = {
-	Easy = { Label = "EASY", Blurb = "She is slower and hard of hearing. Two free break-outs.", Speed = 0.9, Hearing = 0.8, CageSeconds = 90, FreeStruggles = 2 },
-	Normal = { Label = "NORMAL", Blurb = "The shift as it was meant to be worked.", Speed = 1, Hearing = 1, CageSeconds = 70, FreeStruggles = 1 },
-	Nightmare = { Label = "NIGHTMARE", Blurb = "Faster. Hears everything. No free break-outs.", Speed = 1.07, Hearing = 1.25, CageSeconds = 50, FreeStruggles = 0 },
+	Easy = { Label = "EASY", Blurb = "It is slower and hard of hearing. Four hearts, two break-frees.", Speed = 0.9, Hearing = 0.8, Hearts = 4, BreakFrees = 2 },
+	Normal = { Label = "NORMAL", Blurb = "The job as written. Three hearts, one break-free.", Speed = 1, Hearing = 1, Hearts = 3, BreakFrees = 1 },
+	Nightmare = { Label = "NIGHTMARE", Blurb = "Faster. Hears everything. Two hearts. You cannot break free.", Speed = 1.07, Hearing = 1.25, Hearts = 2, BreakFrees = 0 },
 } :: { [string]: Difficulty }
 Config.DifficultyOrder = { "Easy", "Normal", "Nightmare" }
 
 -- Chapters. Only available ones can be selected; the rest show as in development.
 Config.Parts = {
-	{ Name = "PART 1", Title = "THE RELAY", Available = true },
+	{ Name = "PART 1", Title = "THE NIGHT WARD", Available = true },
 	{ Name = "PART 2", Title = "IN DEVELOPMENT", Available = false },
 	{ Name = "PART 3", Title = "IN DEVELOPMENT", Available = false },
 }
 
 ----------------------------------------------------------------------------
--- F.A.W.N.
+-- H.U.S.H. (the code still calls the module "Fawn")
 ----------------------------------------------------------------------------
 Config.Fawn = {
-	Name = "F.A.W.N.",
+	Name = "H.U.S.H.",
 	Height = 9.2,
 	PatrolSpeed = 8.5,
 	InvestigateSpeed = 13,
@@ -146,25 +152,25 @@ Config.Fawn = {
 export type Product = { Id: number, Name: string, Blurb: string, SuggestedPrice: number }
 
 Config.Products = {
-	-- Self-revive, bought from inside a cage ("a key, just within reach").
-	Revive = { Id = 0, Name = "Rusted Key", Blurb = "Unlock your cage.", SuggestedPrice = 39 },
-	-- Effigy of Mercy (outside the Kennel): frees every caged teammate.
-	ReviveAll = { Id = 0, Name = "Effigy of Mercy", Blurb = "Every cage opens.", SuggestedPrice = 99 },
-	-- Effigy of Silence: the whole crew is inaudible to FAWN for a minute.
-	DeadAir = { Id = 0, Name = "Effigy of Silence", Blurb = "Sixty seconds of dead air. It cannot hear your crew.", SuggestedPrice = 49 },
-	-- Effigy of Sight: objective items glow through walls for the crew.
-	Sight = { Id = 0, Name = "Effigy of Sight", Blurb = "What you are looking for shows itself.", SuggestedPrice = 29 },
-	-- Effigy of Howling / lobby siren: scares every player on the server.
-	ScareAll = { Id = 0, Name = "Effigy of Howling", Blurb = "Everyone hears it. Everyone.", SuggestedPrice = 25 },
+	-- Wall dispenser, any ward: one heart back (also banked if it cannot be used).
+	Revive = { Id = 0, Name = "Adrenaline", Blurb = "One heart back.", SuggestedPrice = 39 },
+	-- Dispenser by the elevator lobby: a heart back for the whole crew.
+	ReviveAll = { Id = 0, Name = "Crash Cart", Blurb = "A heart back for everyone on the ward.", SuggestedPrice = 99 },
+	-- Dispenser outside Surgery: HUSH cannot hear the crew for a minute.
+	DeadAir = { Id = 0, Name = "Sedative", Blurb = "Sixty seconds. It cannot hear your crew.", SuggestedPrice = 49 },
+	-- Dispenser by the Nurse Station: tube stations and case files glow through walls.
+	Sight = { Id = 0, Name = "Scanner", Blurb = "Tube stations and case files show through the walls.", SuggestedPrice = 29 },
+	-- Dispenser outside the Morgue, and the PA handset in the lobby: scares the whole server.
+	ScareAll = { Id = 0, Name = "Code Blue", Blurb = "Page the whole building. Everyone hears it.", SuggestedPrice = 25 },
 } :: { [string]: Product }
 
 Config.Passes = {
 	Flashlight = { Id = 0, Name = "Heavy-Duty Lantern", Blurb = "Battery lasts twice as long. Wider beam.", SuggestedPrice = 129 },
-	NightVision = { Id = 0, Name = "Camcorder Night Mode", Blurb = "Press N: see in the dark without a light. Static blinds it when FAWN is close.", SuggestedPrice = 249 },
-	SecondWind = { Id = 0, Name = "Second Wind", Blurb = "One extra free cage break-out every shift.", SuggestedPrice = 199 },
-	Tracker = { Id = 0, Name = "Signal Tracker", Blurb = "A needle on your HUD leans toward FAWN's carrier signal.", SuggestedPrice = 79 },
+	NightVision = { Id = 0, Name = "Camcorder Night Mode", Blurb = "Press N: see in the dark without a light. Static blinds it when HUSH is close.", SuggestedPrice = 249 },
+	SecondWind = { Id = 0, Name = "Second Wind", Blurb = "One extra break-free every shift.", SuggestedPrice = 199 },
+	Tracker = { Id = 0, Name = "Signal Tracker", Blurb = "A needle on your HUD leans toward HUSH's carrier signal.", SuggestedPrice = 79 },
 	Stamina = { Id = 0, Name = "Night Runner", Blurb = "50% more stamina.", SuggestedPrice = 149 },
-	Veteran = { Id = 0, Name = "Night Shift Veteran", Blurb = "Gold crew tag, lobby lantern, and a wave from the ranger.", SuggestedPrice = 99 },
+	Veteran = { Id = 0, Name = "Senior Investigator", Blurb = "Gold name tag and a Hollow Signal lanyard.", SuggestedPrice = 99 },
 } :: { [string]: Product }
 
 Config.Monetization = {
@@ -215,6 +221,10 @@ Config.Sounds = {
 	Blip = 0, -- ui_blip.ogg
 	Type = 0, -- ui_type.ogg
 	TapeStart = 0, -- tape_start.ogg
+	Shutter = 0, -- camera_shutter.ogg
+	TubeSend = 0, -- tube_send.ogg
+	PowerDown = 0, -- power_down.ogg
+	Grab = 0, -- grab.ogg
 	Breath = 0, -- breath_gasp.ogg
 	Sting = 0, -- sting_low.ogg
 } :: { [string]: number }

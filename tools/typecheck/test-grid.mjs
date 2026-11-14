@@ -28,10 +28,20 @@ local function reach(label, chars, expectAll)
   log(label .. ": " .. ok .. "/" .. total .. " reachable")
   if expectAll then assert(ok == total, label .. " not fully reachable") end
 end
-reach("pre-power items", {"F","T","b","n","X","S","m","K"}, false)
-for idx in map.Sealed do map.Sealed[idx] = nil end
-reach("all doors unlocked", {"F","T","b","n","X","S","m","Z","C","K"}, true)
-for _, ch in {"H","1","2","3","4"} do
+reach("everything", {"b","S","m","E"}, true)
+-- furniture is not walkable itself: the cell in front of it must be reachable
+for _, ch in {"F","R"} do
+  for _, idx in map.Markers[ch] or {} do
+    local cx, cy = Grid.coords(map, idx)
+    local ok = false
+    for _, d in Grid.Dirs do
+      if Grid.isPassable(map, cx + d[1], cy + d[2]) and Grid.findPath(map, ex, ey, cx + d[1], cy + d[2]) then ok = true end
+    end
+    assert(ok, ch .. " not reachable at " .. cx .. "," .. cy)
+  end
+end
+log("furniture reachable")
+for _, ch in {"H","P","1","2","3","4"} do
   for _, idx in map.Markers[ch] or {} do
     local cx, cy = Grid.coords(map, idx)
     local dx, dy = Grid.mountFacing(map, idx)
@@ -41,14 +51,6 @@ for _, ch in {"H","1","2","3","4"} do
     log(("mount %s (%d,%d) alcove=%s faces (%d,%d) '%s'"):format(ch, cx, cy, tostring(Grid.isAlcove(map, idx)), dx, dy, f))
   end
 end
-local z = map.Markers["Z"][1]
-local zx, zy = Grid.coords(map, z)
-local c = map.Markers["C"][1]
-local cx, cy = Grid.coords(map, c)
-local p = Grid.findPath(map, cx, cy, zx, zy)
-log("control -> exit path cells: " .. #p)
-log("LOS along north corridor: " .. tostring(Grid.lineOfSight(map, 9*8-4, 6*8-4, 38*8-4, 6*8-4)))
-log("LOS through wall: " .. tostring(Grid.lineOfSight(map, 9*8-4, 6*8-4, 9*8-4, 12*8-4)))
 local lights = 0
 for idx, f in map.Floor do
   if f ~= "" then local x, y = Grid.coords(map, idx); if (f == "." and (x + y) % 4 == 0) or (f ~= "." and x % 3 == 0 and y % 3 == 0) then lights += 1 end end

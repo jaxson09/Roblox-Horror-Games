@@ -20,6 +20,7 @@ local Atmosphere = {}
 Atmosphere.NightVision = false -- set by Flashlight
 Atmosphere.Dread = 0 -- 0..1, set by FawnAnimator from FAWN's distance
 Atmosphere.Chased = false -- set by FawnAnimator
+Atmosphere.PowerOut = false -- set when the ward loses power on the way out
 
 local player = Players.LocalPlayer
 local rng = Random.new()
@@ -39,8 +40,8 @@ type Profile = {
 
 local PROFILES: { [string]: Profile } = {
 	Lobby = { Ambient = Color3.fromRGB(14, 16, 16), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.4, Haze = 1.6, AtmoColor = Color3.fromRGB(20, 24, 22), Brightness = 0, Exposure = 0.05, Saturation = -0.35, Contrast = 0.15, Tint = Color3.fromRGB(228, 236, 226) },
-	Blackout = { Ambient = Color3.fromRGB(4, 5, 5), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.5, Haze = 1.2, AtmoColor = Color3.fromRGB(8, 10, 10), Brightness = 0, Exposure = -0.1, Saturation = -0.45, Contrast = 0.2, Tint = Color3.fromRGB(226, 236, 226) },
-	Powered = { Ambient = Color3.fromRGB(9, 11, 10), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.46, Haze = 1.4, AtmoColor = Color3.fromRGB(14, 18, 16), Brightness = 0, Exposure = 0, Saturation = -0.4, Contrast = 0.18, Tint = Color3.fromRGB(226, 236, 222) },
+	Blackout = { Ambient = Color3.fromRGB(5, 3, 3), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.5, Haze = 1.2, AtmoColor = Color3.fromRGB(8, 10, 10), Brightness = 0, Exposure = -0.1, Saturation = -0.45, Contrast = 0.2, Tint = Color3.fromRGB(226, 236, 226) },
+	Powered = { Ambient = Color3.fromRGB(13, 14, 14), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.46, Haze = 1.4, AtmoColor = Color3.fromRGB(14, 18, 16), Brightness = 0, Exposure = 0, Saturation = -0.4, Contrast = 0.18, Tint = Color3.fromRGB(226, 236, 222) },
 	Lockdown = { Ambient = Color3.fromRGB(22, 5, 5), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.44, Haze = 1.4, AtmoColor = Color3.fromRGB(30, 8, 8), Brightness = 0, Exposure = 0.05, Saturation = -0.25, Contrast = 0.25, Tint = Color3.fromRGB(255, 214, 208) },
 	NightVision = { Ambient = Color3.fromRGB(110, 150, 110), Outdoor = Color3.fromRGB(60, 90, 60), Density = 0.3, Haze = 0.5, AtmoColor = Color3.fromRGB(20, 40, 20), Brightness = 0.4, Exposure = 0.5, Saturation = -1, Contrast = 0.3, Tint = Color3.fromRGB(120, 255, 140) },
 }
@@ -61,11 +62,8 @@ local function profileName(): string
 	if Atmosphere.NightVision then
 		return "NightVision"
 	end
-	local phase = workspace:GetAttribute("HS_Phase")
-	if phase == "Escape" then
-		return "Lockdown"
-	elseif phase == "Blackout" then
-		return "Blackout"
+	if workspace:GetAttribute("HS_Phase") == "Return" then
+		return if Atmosphere.PowerOut then "Blackout" else "Lockdown"
 	end
 	return "Powered"
 end
@@ -106,7 +104,7 @@ end
 local function stepLights(dt: number)
 	local now = os.clock()
 	local globalFlicker = now < flickerUntil
-	local alarm = workspace:GetAttribute("HS_Phase") == "Escape"
+	local alarm = workspace:GetAttribute("HS_Phase") == "Return"
 	local world = workspace:FindFirstChild("World")
 	local facility = world and world:FindFirstChild("Facility")
 	local lights = facility and facility:FindFirstChild("Lights")
@@ -247,7 +245,10 @@ function Atmosphere.init()
 		mix("LobbyForest", if inShift then 0 else 0.12, dt) -- wind against the sealed doors
 		mix("BunkerDrone", if inShift then 0.45 else 0, dt)
 		mix("ChaseTheme", if inShift and Atmosphere.Chased then 0.75 else 0, dt)
-		mix("Alarm", if inShift and workspace:GetAttribute("HS_Phase") == "Escape" then 0.4 else 0, dt)
+		mix("Alarm", if inShift and workspace:GetAttribute("HS_Phase") == "Return" then 0.3 else 0, dt)
+		if workspace:GetAttribute("HS_Phase") ~= "Return" then
+			Atmosphere.PowerOut = false
+		end
 		mix("Heartbeat", dread * 0.9, dt)
 		mix("Static", dread * 0.3, dt)
 		sounds.Heartbeat.PlaybackSpeed = 1 + dread * 0.7

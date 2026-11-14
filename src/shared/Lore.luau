@@ -1,102 +1,118 @@
 --!strict
---[[ Story text: intro, reels, notes, objectives, mimic lines. ]]
+--[[ Story text: briefing tape, objectives, on-screen event lines, case files, what HUSH says. ]]
 
 local Lore = {}
 
+Lore.Company = "HOLLOW SIGNAL"
+Lore.CaseNumber = "CASE 0419-H"
+Lore.Location = "MERIDIAN GENERAL HOSPITAL  —  WARD C"
+
+-- Shown once on a first visit.
 Lore.Intro = {
-	"MARROW CREEK RELAY STATION",
-	"DECOMMISSIONED 1989",
+	"HOLLOW SIGNAL",
+	"ANOMALOUS EVIDENCE RECOVERY",
 	"",
-	"You answered a listing. One night. Cash. No questions.",
-	"Take the freight elevator down. Bring up the four reels.",
+	"Some things are only real once there is proof of them.",
+	"We get the proof.",
 	"",
-	"Whatever calls your name down there —",
-	"check that your friend is standing next to you first.",
+	"Tonight's case: Meridian General Hospital. Closed 1994.",
+	"The night staff never clocked out.",
 }
+
+export type Slide = { Title: string, Lines: { string }, Warning: string?, Seconds: number }
+
+-- The training tape that plays on the way up in the elevator.
+Lore.Briefing = {
+	{ Title = "FIELD BRIEFING", Lines = { "HOLLOW SIGNAL  //  EVIDENCE DIVISION", "CASE 0419-H", "MERIDIAN GENERAL HOSPITAL, WARD C", "", "INVESTIGATORS ONLY. DO NOT COPY THIS TAPE." }, Seconds = 3.2 },
+	{ Title = "THE SUBJECT", Lines = { "DESIGNATION: H.U.S.H.", "A PATIENT-CARE AUTOMATON. LEFT RUNNING WHEN THE WARD CLOSED.", "IT STILL DOES ITS ROUNDS.", "IT HAS LEARNED TO SOUND LIKE PEOPLE." }, Seconds = 4.2 },
+	{ Title = "YOUR JOB", Lines = { "1.  PHOTOGRAPH THE SUBJECT            0/5", "2.  SEND THE EVIDENCE BY TUBE STATION   0/5", "3.  RETURN TO THE ELEVATOR" }, Warning = "DO NOT ENGAGE", Seconds = 4.6 },
+	{ Title = "FIELD GUIDE", Lines = { "IT COMES TO NOISE. WALK. CROUCH.", "LOCKERS HIDE YOU — IF IT DID NOT SEE YOU GET IN.", "TUBE STATIONS ARE LOUD AND RUN OUT OF CANISTERS.", "FILING CABINETS MAY HOLD CASE FILES. BRING THEM BACK." }, Seconds = 5 },
+	{ Title = "", Lines = { "IF IT ASKS YOU A QUESTION," }, Warning = "DO NOT ANSWER IT.", Seconds = 3.4 },
+} :: { Slide }
 
 Lore.Objectives = {
 	Lobby = "FORM A CREW IN A CIRCLE AT THE FAR END OF THE HALL",
-	LobbyMatch = "SHIFT IN PROGRESS BELOW  //  STEP INTO A CIRCLE TO GO BACK DOWN",
-	Blackout = "RESTORE POWER  //  FUSES %d/%d",
-	BlackoutInstall = "INSTALL THE FUSES  //  GENERATOR ROOM",
-	Tapes = "RECOVER THE REELS  //  %d/%d",
-	TapesInsert = "LOAD THE REELS  //  CONTROL",
-	Broadcast = "HOLD CONTROL  //  RECALL TONE %d%%",
-	BroadcastDrift = "SIGNAL DRIFT  //  RETUNE AT THE CONSOLE",
-	BroadcastEmpty = "TRANSMISSION PAUSED  //  SOMEONE MUST STAY IN CONTROL",
-	Escape = "BLAST DOOR OPEN  //  REACH THE SURFACE  %s",
-	Caged = "CAGED  //  %ds",
-	Spectating = "YOU WERE TAKEN",
-}
+	LobbyMatch = "CASE IN PROGRESS UPSTAIRS  //  STEP INTO A CIRCLE TO GO BACK UP",
+	Photograph = "PHOTOGRAPH THE SUBJECT",
+	PhotographHint = "Raise the camcorder and get it in frame.",
+	Send = "SEND THE EVIDENCE",
+	SendHint = "Find a tube station. They are loud.",
+	Return = "RETURN TO THE ELEVATOR",
+	ReturnHint = "Back the way you came. It knows you are leaving.",
+} :: { [string]: string }
 
-export type Reel = { Title: string, Body: string }
-
--- Played in order as the crew recovers reels.
-Lore.Reels = {
-	{
-		Title = "REEL 1 — COMMISSIONING",
-		Body = "Field Automaton for Wilderness Navigation. Unit seven. The rangers call her Fawn. "
-			.. "She finds lost hikers by playing them the voices of people they love. "
-			.. "Forty-one rescues the first winter. We are very proud.",
-	},
-	{
-		Title = "REEL 2 — INCIDENT LOG",
-		Body = "She came back alone again. Third time this month. "
-			.. "The speaker was playing a child's voice. We never recorded a child. "
-			.. "Maintenance found deer hair in the shoulder joints.",
-	},
-	{
-		Title = "REEL 3 — DR. OKAFOR",
-		Body = "She has started collecting. Antlers first. Then hides. "
-			.. "It is not malice. It is the rescue heuristic: people walk toward what looks alive. "
-			.. "So she is trying to look alive. She is trying to look like us.",
-	},
-	{
-		Title = "REEL 4 — LAST TRANSMISSION",
-		Body = "Do not try to shut her down by hand. Broadcast the recall tone from Control and get out. "
-			.. "She will come to the tone. She always comes to a voice. "
-			.. "And if you can hear me, and I sound like someone you know — I am sorry. That is not me anymore.",
-	},
-} :: { Reel }
+-- Big lines at the top of the screen. { headline, sub-line }
+Lore.Banners = {
+	Photo = { "SUBJECT PHOTOGRAPHED  %d/%d", "Send it from a tube station." },
+	PhotoAll = { "SUBJECT PHOTOGRAPHED  %d/%d", "That is all of it. Now get it out of the building." },
+	NoSubject = { "NO SUBJECT IN FRAME", "" },
+	TooSoon = { "SAME SHOT", "Get it from somewhere new." },
+	Sent = { "EVIDENCE SENT  %d/%d", "" },
+	Hears = { "IT HEARS YOU. BE QUIET.", "Stop moving. Crouch." },
+	Sees = { "IT SEES YOU. RUN.", "Break line of sight." },
+	Lost = { "IT LOST YOU. STAY HIDDEN.", "" },
+	Watching = { "SOMETHING IS ON ITS ROUNDS.", "" },
+	Exit = { "THE ELEVATOR IS BACK", "All evidence sent. Return to the elevator lobby." },
+	Power = { "THE POWER IS OUT", "It knows you are leaving." },
+	Asked = { "IT ASKED YOU A QUESTION.", "Do not answer it." },
+	Answered = { "YOU ANSWERED IT.", "Now it knows exactly where you are." },
+	Recovery = { "YOU WOKE UP IN RECOVERY", "%d left. Get up. Quietly." },
+	BrokeFree = { "YOU BROKE FREE", "It will not let go twice." },
+} :: { [string]: { string } }
 
 export type Note = { Id: string, Title: string, Body: string }
 
+-- Case files hidden in the filing cabinets.
 Lore.Notes = {
-	{ Id = "memo_voices", Title = "MEMO — VOICE LIBRARY", Body = "All staff are required to record forty phrases for Unit 7's rescue library. Speak clearly. Say your own name twice. She learns faster from names." },
-	{ Id = "kennel_log", Title = "KENNEL LOG", Body = "Moved the search dogs topside. They will not go near the charging bay. Kepler chewed through his lead rather than walk past it. Dogs know." },
-	{ Id = "night_rules", Title = "NIGHT SHIFT RULES", Body = "1. Walk. Do not run. She comes to noise.\n2. Close doors behind you. She cannot see through steel.\n3. If she is near your locker, hold your breath.\n4. Count your crew. Then count again." },
-	{ Id = "requisition", Title = "REQUISITION DENIED", Body = "Request for 'one (1) full-length mirror, charging bay' is denied. Unit 7 is not staff. Unit 7 does not need to see how it looks." },
-	{ Id = "okafor_private", Title = "PRIVATE — S. OKAFOR", Body = "I heard my mother call me from the server room tonight. My mother has been dead for nine years. I answered anyway. God help me, I answered." },
-	{ Id = "trade", Title = "SCRAWLED ON CARDBOARD", Body = "it leaves the skulls where it wants us to stop. leave something. take something. it TRADES. i think it thinks that's what people do." },
-	{ Id = "evac", Title = "EVACUATION ORDER", Body = "Station is to be sealed. Blast door will be welded from the surface side. Anyone still below at 0600 is to be considered part of the station." },
-	{ Id = "light", Title = "MAINTENANCE TIP", Body = "Her optics are old. A strong light straight in the lens will whiteout the sensor for a second or two. It also makes her very, very angry." },
+	{ Id = "file_purchase", Title = "PURCHASE ORDER, 1989", Body = "One (1) Hospital Utility and Sedation Helper, night-shift configuration. Vendor notes: unit learns bedside manner by listening. Recommend it be allowed to listen as much as possible." },
+	{ Id = "file_incident", Title = "INCIDENT REPORT 14", Body = "Patient in C-2 states the night nurse spoke to her in her late husband's voice. There is no night nurse rostered on Ward C. There has not been since the unit arrived." },
+	{ Id = "file_face", Title = "MAINTENANCE REQUEST", Body = "Unit has removed its faceplate again and fitted the head of the resuscitation dummy. When asked why, it said: 'Patients are calmer when there is a face.' It said it in my voice." },
+	{ Id = "file_rounds", Title = "NIGHT ROUNDS — STANDING ORDER", Body = "Unit is to respond to patient calls only. Staff are reminded NOT to answer when the unit asks after you by name. It is not asking. It is checking where you are." },
+	{ Id = "file_closure", Title = "NOTICE OF CLOSURE, 1994", Body = "Ward C is to be sealed with the unit inside. Power to remain on: the Board has been advised it becomes 'distressed' in the dark, and that we do not want it distressed." },
+	{ Id = "file_last", Title = "HANDWRITTEN, UNSIGNED", Body = "It does not want to hurt anyone. It wants to finish its rounds. Every bed has to have someone in it. It will keep putting people back until every bed is full." },
 } :: { Note }
 
--- %s is replaced with a real crew member's name. It prefers the ones it has taken.
+-- What it says. %s is the name of a real crew member.
 Lore.MimicLines = {
-	"%s: hey. over here.",
-	"%s: i found the way out. come on.",
-	"%s: wait for me.",
-	"%s: help me. please.",
-	"%s: it's safe now. you can come out.",
-	"%s: don't leave me down here.",
-	"%s: why did you leave me?",
-	"%s: say your name again.",
+	"%s? is that you?",
+	"%s, where are you? i can't see.",
+	"%s. it's me. come out.",
+	"it's gone, %s. you can come out now.",
+	"%s, help me. please.",
+	"%s? say something.",
+}
+
+-- Questions it asks while it searches. Answering tells it where you are.
+Lore.Questions = {
+	"ARE YOU IN PAIN, %s?",
+	"%s. WHERE DOES IT HURT?",
+	"HAVE YOU TAKEN YOUR MEDICATION, %s?",
+	"%s? ARE YOU OUT OF BED?",
+	"IS SOMEONE THERE? %s?",
+}
+
+-- Said in the close-up when it has you.
+Lore.GrabLines = {
+	"YOU SHOULD NOT BE OUT OF BED.",
+	"THIS WILL NOT HURT, %s.",
+	"SHH. BACK TO BED.",
+	"I HAVE A BED FOR YOU, %s.",
 }
 
 Lore.Tips = {
-	"She comes to noise. Walk.",
-	"Close doors behind you.",
-	"In a locker, hold your breath when she is close.",
-	"A caged friend can be freed. A missing one is being worn.",
-	"Your light gives you away — and can blind her, once.",
-	"Count your crew.",
+	"It comes to noise. Walk.",
+	"The flash is loud. Shoot, then move.",
+	"If it asks you a question, say nothing.",
+	"In a locker, hold your breath when it is close.",
+	"Tube stations run out. Do not waste them.",
+	"Close doors behind you. It cannot see through them.",
 }
 
 Lore.Endings = {
-	Escaped = { "YOU REACHED THE SURFACE", "The tone is still playing somewhere below you. It will play until the generator dies." },
-	Taken = { "YOU WERE TAKEN", "Your voice has been added to the library." },
-	Lockdown = { "SEALED BELOW", "The blast door closed at 0600. You are part of the station now." },
-}
+	Escaped = { "CASE CLOSED", "The evidence is on its way to people who will know what to do with it. Probably." },
+	Taken = { "ADMITTED", "Every bed has to have someone in it." },
+	Lockdown = { "LIGHTS OUT", "The elevator left without you. Visiting hours are over." },
+	Left = { "CASE ABANDONED", "Someone else will have to go back in." },
+} :: { [string]: { string } }
 
 return Lore

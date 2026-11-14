@@ -123,4 +123,4 @@ end
 
 workspace:SetAttribute("HS_Mode", if isMatch then "Match" else "Lobby")
 workspace:SetAttribute("HS_Ready", true)
-print(`[{Config.GameName}] v{Config.Version} ready ({if isMatch then "match" else "lobby"} server) — {#lobby.Pads} lobby circles, {#facility.Lockers} lockers, {#facility.Cages} cages, {#facility.Effigies} effigies`)
+print(`[{Config.GameName}] v{Config.Version} ready ({if isMatch then "match" else "lobby"} server) — {#lobby.Pads} lobby circles, {#facility.Lockers} lockers, {#facility.Stations} tube stations, {#facility.Beds} recovery beds`)

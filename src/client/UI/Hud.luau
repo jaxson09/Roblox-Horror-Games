@@ -1,9 +1,17 @@
 --!strict
 --[[
-	Hud — the camcorder on-screen display and every panel: objective, toasts,
-	subtitles, reel transcripts, notes, locker/cage prompts, results, intro.
-	Fonts: PressStart2P for OSD tags, Roboto Mono for readouts, Special Elite
-	for anything typed on paper, Creepster exactly once (when it takes you).
+	Hud — everything on the glass.
+
+	  top right      case objectives with progress pips, and your vitals (hearts)
+	  top centre     event lines: "IT HEARS YOU. BE QUIET."
+	  bottom left    noise meter (quiet / normal / loud) and stamina
+	  bottom centre  hotbar: camcorder, light; what it is saying to you
+	  bottom right   key hints
+	  centre         camcorder viewfinder, locker and grab prompts
+
+	Plus the panels: briefing tape, case files, field report, intro.
+	Fonts: Bodoni for event lines and its speech, Roboto Mono for readouts,
+	PressStart2P for small OSD tags, Special Elite for anything on paper.
 ]]
 
 local Players = game:GetService("Players")
@@ -26,54 +34,92 @@ local Hud = {}
 local player = Players.LocalPlayer
 local C = Config.Colors
 local F = Theme.Fonts
+local NEEDED = Config.Shift.PhotosNeeded
 
 Hud.Stamina = 1 -- written by Movement
 Hud.TrackerAngle = nil :: number? -- written by FawnAnimator (radians, 0 = dead ahead)
 Hud.TrackerStrength = 0
 Hud.DazzleProgress = 0 -- written by Flashlight
+Hud.CameraUp = false -- written by Camcorder
+Hud.LightOn = false -- written by Flashlight
 
 local gui: ScreenGui
 local shiftGroup: Frame
-local objective: TextLabel
-local recDot: Frame
-local timecode: TextLabel
+local lobbyHint: TextLabel
+local card: Frame
+local photoLine: TextLabel
+local sendLine: TextLabel
+local cardHint: TextLabel
+local photoPips: { Frame } = {}
+local sendPips: { Frame } = {}
+local heartPips: { Frame } = {}
+local bannerHead: TextLabel
+local bannerSub: TextLabel
+local bannerRule: Frame
 local location: TextLabel
-local batteryFill: Frame
-local noiseSegments: { Frame } = {}
+local noiseBars: { Frame } = {}
 local staminaFill: Frame
+local batteryFill: Frame
+local slotCamera: Frame
+local slotLight: Frame
 local toasts: Frame
 local subtitle: TextLabel
+local askPanel: Frame
+local askFill: Frame
+local viewfinder: Frame
+local recDot: Frame
+local timecode: TextLabel
 local lockerPanel: Frame
 local breathFill: Frame
 local lockerHint: TextLabel
-local cagePanel: Frame
-local cageTimer: TextLabel
-local struggleFill: Frame
-local struggleHint: TextLabel
+local grabPanel: Frame
+local grabHint: TextLabel
+local grabFill: Frame
 local trackerStrip: Frame
 local trackerDot: Frame
 local dazzleBar: Frame
-local tapePanel: Frame
-local tapeTitle: TextLabel
-local tapeBody: TextLabel
 local blip: Sound
 local typeSound: Sound
 local shiftJoinedAt = 0
 local hiddenSince = 0
-local holdingAction = false
-local cancelTape: (() -> ())? = nil
+local holdingBreath = false
+local askedUntil = 0
+local askedFor = 5
 
 local function send(name: string, value: any?)
 	Remotes.ToServer:FireServer(name, value)
+end
+
+local function panel(parent: Instance, name: string, size: UDim2, position: UDim2): Frame
+	local frame = Theme.frame(parent, name, size, position, Color3.fromRGB(6, 7, 7), 0.35)
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = C.Osd
+	stroke.Transparency = 0.82
+	stroke.Parent = frame
+	return frame
 end
 
 local function bar(parent: Instance, name: string, size: UDim2, position: UDim2, color: Color3): Frame
 	local back = Theme.frame(parent, name, size, position, Color3.new(0, 0, 0), 0.5)
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = C.Osd
-	stroke.Transparency = 0.55
+	stroke.Transparency = 0.6
 	stroke.Parent = back
 	return Theme.frame(back, "Fill", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), color, 0.1)
+end
+
+local function pips(parent: Instance, count: number, x: number, y: number, size: number, round: boolean): { Frame }
+	local list = {}
+	for i = 1, count do
+		local pip = Theme.frame(parent, "Pip", UDim2.fromOffset(size, size), UDim2.new(1, x - (count - i + 1) * (size + 4), 0, y), C.Osd, 0.8)
+		if round then
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(1, 0)
+			corner.Parent = pip
+		end
+		table.insert(list, pip)
+	end
+	return list
 end
 
 ----------------------------------------------------------------------------
@@ -81,7 +127,7 @@ end
 ----------------------------------------------------------------------------
 function Hud.toast(text: string, kind: string?)
 	local color = if kind == "bad" then C.Rec elseif kind == "good" then C.Phosphor elseif kind == "store" then C.Robux else C.Osd
-	local label = Theme.label(toasts, "Toast", UDim2.new(1, 0, 0, 22), UDim2.fromScale(0, 0), F.MonoBold, 15, color, text)
+	local label = Theme.label(toasts, "Toast", UDim2.new(1, 0, 0, 20), UDim2.fromScale(0, 0), F.Mono, 14, color, text)
 	label.TextXAlignment = Enum.TextXAlignment.Center
 	label.TextTransparency = 1
 	blip:Play()
@@ -93,13 +139,39 @@ function Hud.toast(text: string, kind: string?)
 	end)
 end
 
+-- The big event line at the top. tone: "good" | "bad" | "info".
+function Hud.banner(headline: string, sub: string?, tone: string?)
+	local color = if tone == "bad" then Color3.fromRGB(214, 40, 40) else C.Osd
+	local stamp = os.clock()
+	bannerHead:SetAttribute("Stamp", stamp)
+	bannerHead.Text = headline
+	bannerHead.TextColor3 = color
+	bannerSub.Text = sub or ""
+	bannerRule.BackgroundColor3 = color
+	for _, object in { bannerHead, bannerSub } do
+		object.TextTransparency = 1
+		TweenService:Create(object, TweenInfo.new(0.3), { TextTransparency = 0 }):Play()
+	end
+	bannerRule.Size = UDim2.fromOffset(0, 1)
+	bannerRule.BackgroundTransparency = 0.3
+	TweenService:Create(bannerRule, TweenInfo.new(0.5, Enum.EasingStyle.Quad), { Size = UDim2.fromOffset(260, 1) }):Play()
+	if tone ~= "info" then
+		blip:Play()
+	end
+	task.delay(4.2, function()
+		if bannerHead:GetAttribute("Stamp") == stamp then
+			TweenService:Create(bannerHead, TweenInfo.new(0.9), { TextTransparency = 1 }):Play()
+			TweenService:Create(bannerSub, TweenInfo.new(0.9), { TextTransparency = 1 }):Play()
+			TweenService:Create(bannerRule, TweenInfo.new(0.9), { BackgroundTransparency = 1 }):Play()
+		end
+	end)
+end
+
 local GLITCH = { "#", "%", "_", "/", "~", "=", "?" }
 
--- Spoken lines. `glitch` renders the mimic's voice: wrong, crawling characters.
+-- What it says. `glitch` crawls wrong characters through the line.
 function Hud.subtitle(text: string, glitch: boolean?)
 	subtitle.Text = text
-	subtitle.TextColor3 = if glitch then Color3.fromRGB(255, 120, 110) else C.Osd
-	subtitle.FontFace = if glitch then F.Typewriter else F.Mono
 	subtitle.Visible = true
 	local stamp = os.clock()
 	subtitle:SetAttribute("Stamp", stamp)
@@ -108,13 +180,11 @@ function Hud.subtitle(text: string, glitch: boolean?)
 			local rng = Random.new()
 			while subtitle:GetAttribute("Stamp") == stamp and os.clock() - stamp < 5 do
 				local chars = string.split(text, "")
-				for _ = 1, 2 do
-					chars[rng:NextInteger(1, #chars)] = GLITCH[rng:NextInteger(1, #GLITCH)]
-				end
+				chars[rng:NextInteger(1, #chars)] = GLITCH[rng:NextInteger(1, #GLITCH)]
 				subtitle.Text = table.concat(chars)
-				task.wait(0.09)
+				task.wait(0.08)
 				subtitle.Text = text
-				task.wait(rng:NextNumber(0.1, 0.5))
+				task.wait(rng:NextNumber(0.15, 0.6))
 			end
 		end)
 	end
@@ -125,24 +195,12 @@ function Hud.subtitle(text: string, glitch: boolean?)
 	end)
 end
 
-function Hud.showTape(index: number, title: string, body: string)
-	if cancelTape then
-		cancelTape()
-	end
-	tapePanel.Visible = true
-	tapePanel.Position = UDim2.new(1, 20, 0.3, 0)
-	TweenService:Create(tapePanel, TweenInfo.new(0.5, Enum.EasingStyle.Quad), { Position = UDim2.new(1, -380, 0.3, 0) }):Play()
-	tapeTitle.Text = `▶ {title}  [{index}/{Config.Shift.TapesNeeded}]`
-	cancelTape = Theme.typewrite(tapeBody, body, 28, function()
-		typeSound:Play()
-	end)
-	local stamp = os.clock()
-	tapePanel:SetAttribute("Stamp", stamp)
-	task.delay(#body / 28 + 7, function()
-		if tapePanel:GetAttribute("Stamp") == stamp then
-			TweenService:Create(tapePanel, TweenInfo.new(0.5), { Position = UDim2.new(1, 20, 0.3, 0) }):Play()
-		end
-	end)
+-- It asked you something. The prompt is real; using it is the mistake.
+function Hud.asked(line: string, seconds: number)
+	Hud.subtitle(line, false)
+	Hud.banner(Lore.Banners.Asked[1], Lore.Banners.Asked[2], "bad")
+	askedUntil = os.clock() + seconds
+	askedFor = seconds
 end
 
 function Hud.showNote(id: string)
@@ -156,16 +214,18 @@ function Hud.showNote(id: string)
 		return
 	end
 	local overlay = Theme.screen("HS_Note", 60)
-	local paper = Theme.frame(overlay, "Paper", UDim2.fromOffset(420, 460), UDim2.fromScale(0.5, 0.5), C.Paper, 0)
+	local paper = Theme.frame(overlay, "Paper", UDim2.fromOffset(440, 470), UDim2.fromScale(0.5, 0.5), C.Paper, 0)
 	paper.AnchorPoint = Vector2.new(0.5, 0.5)
 	paper.Rotation = -1.5
-	Theme.fit(paper, 560)
-	local title = Theme.label(paper, "Title", UDim2.new(1, -40, 0, 40), UDim2.fromOffset(20, 22), F.Typewriter, 22, C.Ink, note.Title)
+	Theme.fit(paper, 580)
+	local stampLabel = Theme.label(paper, "Stamp", UDim2.new(1, -40, 0, 16), UDim2.fromOffset(20, 16), F.Osd, 9, Color3.fromRGB(140, 30, 30), Lore.CaseNumber .. "  //  CASE FILE")
+	stampLabel.TextStrokeTransparency = 1
+	local title = Theme.label(paper, "Title", UDim2.new(1, -40, 0, 40), UDim2.fromOffset(20, 40), F.Typewriter, 22, C.Ink, note.Title)
 	title.TextStrokeTransparency = 1
-	local body = Theme.label(paper, "Body", UDim2.new(1, -40, 1, -130), UDim2.fromOffset(20, 76), F.Typewriter, 18, C.Ink, note.Body)
+	local body = Theme.label(paper, "Body", UDim2.new(1, -40, 1, -150), UDim2.fromOffset(20, 92), F.Typewriter, 18, C.Ink, note.Body)
 	body.TextStrokeTransparency = 1
 	body.LineHeight = 1.25
-	local close = Theme.button(paper, "Close", UDim2.fromOffset(200, 30), UDim2.new(0.5, -100, 1, -44), "PUT IT BACK [E]")
+	local close = Theme.button(paper, "Close", UDim2.fromOffset(200, 30), UDim2.new(0.5, -100, 1, -44), "FILE IT [E]")
 	close.Modal = true -- frees the cursor while the camera is locked in first person
 	local opened = os.clock()
 	local keyConnection: RBXScriptConnection? = nil
@@ -187,9 +247,9 @@ end
 
 function Hud.locationCard(title: string, sub: string)
 	local overlay = Theme.screen("HS_Card", 85)
-	local t = Theme.label(overlay, "Title", UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0.42, 0), F.Osd, 22, C.Osd, "")
+	local t = Theme.label(overlay, "Title", UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0.42, 0), F.Serif, 30, C.Osd, "")
 	t.TextXAlignment = Enum.TextXAlignment.Center
-	local s = Theme.label(overlay, "Sub", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0.42, 48), F.Mono, 16, C.Amber, "")
+	local s = Theme.label(overlay, "Sub", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0.42, 48), F.Mono, 15, C.Amber, "")
 	s.TextXAlignment = Enum.TextXAlignment.Center
 	Theme.typewrite(t, title, 22, function()
 		typeSound:Play()
@@ -205,27 +265,101 @@ function Hud.locationCard(title: string, sub: string)
 	end)
 end
 
-export type Results = { Outcome: string, Seconds: number, Reels: number, Fuses: number, Rescues: number, Escapes: number }
+-- The training tape, played full-screen during the elevator ride.
+function Hud.briefing()
+	local overlay = Theme.screen("HS_Briefing", 88)
+	local screen = Theme.frame(overlay, "Tape", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.fromRGB(6, 22, 16), 0)
+	local head = Theme.frame(screen, "Head", UDim2.new(0.62, 0, 0, 44), UDim2.new(0.19, 0, 0.2, 0), Color3.fromRGB(150, 30, 30), 0)
+	local headText = Theme.label(head, "Text", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), F.Osd, 18, C.Osd, "")
+	headText.TextXAlignment = Enum.TextXAlignment.Center
+	headText.TextYAlignment = Enum.TextYAlignment.Center
+	local body = Theme.label(screen, "Body", UDim2.new(0.62, 0, 0.38, 0), UDim2.new(0.19, 0, 0.2, 70), F.Osd, 13, C.Phosphor, "")
+	body.LineHeight = 1.9
+	local warning = Theme.label(screen, "Warning", UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0.74, 0), F.Osd, 22, Color3.fromRGB(255, 70, 60), "")
+	warning.TextXAlignment = Enum.TextXAlignment.Center
+	Theme.label(screen, "Play", UDim2.fromOffset(200, 20), UDim2.new(0.19, 0, 0.2, -30), F.Osd, 12, C.Osd, "PLAY ▶")
+	local counter = Theme.label(screen, "Counter", UDim2.fromOffset(200, 20), UDim2.new(0.81, -200, 0.2, -30), F.Osd, 12, C.Osd, "SP 0:00")
+	counter.TextXAlignment = Enum.TextXAlignment.Right
+	local skip = Theme.button(screen, "Skip", UDim2.fromOffset(120, 28), UDim2.new(1, -150, 1, -56), "SKIP ▶▶")
+	local done = false
+	local function finish()
+		if not done then
+			done = true
+			overlay:Destroy()
+		end
+	end
+	skip.MouseButton1Click:Connect(finish)
+	task.spawn(function()
+		local elapsed = 0
+		for _, slide in Lore.Briefing do
+			if done then
+				return
+			end
+			Vhs.burst(0.5, 0.18) -- tape splice
+			head.Visible = slide.Title ~= ""
+			headText.Text = slide.Title
+			body.Text = table.concat(slide.Lines, "\n")
+			body.TextXAlignment = if slide.Title == "" then Enum.TextXAlignment.Center else Enum.TextXAlignment.Left
+			warning.Text = slide.Warning or ""
+			typeSound:Play()
+			local shown = 0
+			while shown < slide.Seconds and not done do
+				shown += task.wait(0.1)
+				counter.Text = string.format("SP 0:%02d", math.floor(elapsed + shown))
+				warning.TextTransparency = if (shown * 2) % 1 < 0.6 then 0 else 0.7
+			end
+			elapsed += slide.Seconds
+		end
+		finish()
+	end)
+end
+
+export type Results = { Outcome: string, Seconds: number, Photos: number, Sent: number, Files: number, Caught: number, Xp: number, TotalXp: number }
+
+local RANKS = { "RECRUIT", "FIELD AGENT", "INVESTIGATOR", "SENIOR INVESTIGATOR", "ARCHIVIST" }
 
 function Hud.showResults(results: Results)
 	local overlay = Theme.screen("HS_Results", 90)
 	local back = Theme.frame(overlay, "Back", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(0, 0, 0), 1)
-	TweenService:Create(back, TweenInfo.new(1.2), { BackgroundTransparency = 0.25 }):Play()
+	TweenService:Create(back, TweenInfo.new(1.2), { BackgroundTransparency = 0.3 }):Play()
 	local escaped = results.Outcome == "Escaped"
-	local ending = if escaped then Lore.Endings.Escaped elseif results.Outcome == "Lockdown" then Lore.Endings.Lockdown else Lore.Endings.Taken
-	local panel = Theme.frame(overlay, "Panel", UDim2.fromOffset(900, 380), UDim2.fromScale(0.5, 0.5), Color3.new(0, 0, 0), 1)
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	Theme.fit(panel, 520)
-	local title = Theme.label(panel, "Title", UDim2.new(1, 0, 0, 70), UDim2.fromOffset(0, 0), if escaped then F.Osd else F.Horror, if escaped then 26 else 64, if escaped then C.Phosphor else C.Dread, ending[1])
-	title.TextXAlignment = Enum.TextXAlignment.Center
-	local line = Theme.label(panel, "Line", UDim2.new(0.8, 0, 0, 60), UDim2.new(0.1, 0, 0, 86), F.Typewriter, 20, C.Paper, "")
-	line.TextXAlignment = Enum.TextXAlignment.Center
-	Theme.typewrite(line, ending[2], 30)
-	local minutes = results.Seconds // 60
-	local stats = string.format("TIME BELOW   %02d:%02d\nREELS        %d\nFUSES        %d\nCREW FREED   %d\nESCAPES      %d", minutes, results.Seconds % 60, results.Reels, results.Fuses, results.Rescues, results.Escapes)
-	local statLabel = Theme.label(panel, "Stats", UDim2.new(0, 320, 0, 130), UDim2.new(0.5, -160, 0, 170), F.Mono, 17, C.Osd, stats)
-	statLabel.LineHeight = 1.2
-	local close = Theme.button(panel, "Close", UDim2.fromOffset(200, 36), UDim2.new(0.5, -100, 0, 320), "CONTINUE")
+	local ending = Lore.Endings[results.Outcome] or Lore.Endings.Taken
+	local report = panel(overlay, "Report", UDim2.fromOffset(460, 430), UDim2.fromScale(0.5, 0.5))
+	report.AnchorPoint = Vector2.new(0.5, 0.5)
+	report.BackgroundTransparency = 0.08
+	Theme.fit(report, 560)
+	local tag = Theme.label(report, "Tag", UDim2.new(1, -40, 0, 14), UDim2.fromOffset(20, 18), F.Osd, 9, C.Amber, Lore.CaseNumber .. "   //   " .. string.upper(player.DisplayName))
+	tag.TextStrokeTransparency = 1
+	Theme.label(report, "Title", UDim2.new(1, -40, 0, 34), UDim2.fromOffset(20, 38), F.Serif, 30, C.Osd, "FIELD REPORT")
+	local verdict = Theme.label(report, "Verdict", UDim2.new(1, -40, 0, 22), UDim2.fromOffset(20, 78), if escaped then F.MonoBold else F.Horror, if escaped then 16 else 24, if escaped then C.Phosphor else C.Dread, ending[1])
+	verdict.TextStrokeTransparency = 0.8
+	local line = Theme.label(report, "Line", UDim2.new(1, -40, 0, 40), UDim2.fromOffset(20, 106), F.Typewriter, 15, C.Paper, "")
+	Theme.typewrite(line, ending[2], 34)
+	local X = Config.Xp
+	local rows = {
+		{ "Photographs taken", tostring(results.Photos), results.Photos * X.Photo },
+		{ "Evidence sent", tostring(results.Sent), results.Sent * X.Sent },
+		{ "Case files recovered", tostring(results.Files), results.Files * X.File },
+		{ "Returned to the elevator", if escaped then "YES" else "NO", if escaped then X.Escaped else 0 },
+		{ "Times it had you", tostring(results.Caught), 0 },
+	}
+	for i, row in rows do
+		local y = 156 + (i - 1) * 26
+		Theme.label(report, "RowName", UDim2.new(0.6, 0, 0, 20), UDim2.fromOffset(20, y), F.Mono, 14, C.Osd, row[1] :: string)
+		local value = Theme.label(report, "RowValue", UDim2.new(0.2, 0, 0, 20), UDim2.new(0.55, 0, 0, y), F.Mono, 14, C.Osd, row[2] :: string)
+		value.TextXAlignment = Enum.TextXAlignment.Right
+		local xp = Theme.label(report, "RowXp", UDim2.new(0.2, -20, 0, 20), UDim2.new(0.8, 0, 0, y), F.Mono, 14, C.Phosphor, if (row[3] :: number) > 0 then `+{row[3]} XP` else "")
+		xp.TextXAlignment = Enum.TextXAlignment.Right
+	end
+	Theme.frame(report, "Rule", UDim2.new(1, -40, 0, 1), UDim2.fromOffset(20, 292), C.Osd, 0.7)
+	local total = Theme.label(report, "Total", UDim2.new(1, -40, 0, 24), UDim2.fromOffset(20, 300), F.MonoBold, 18, C.Phosphor, `+{results.Xp} XP`)
+	total.TextXAlignment = Enum.TextXAlignment.Right
+	local level = results.TotalXp // X.PerLevel + 1
+	Theme.label(report, "Level", UDim2.new(1, -40, 0, 20), UDim2.fromOffset(20, 302), F.Mono, 14, C.Osd, `LEVEL {level}  —  {RANKS[math.min(level, #RANKS)]}`)
+	local fill = bar(report, "LevelBar", UDim2.new(1, -40, 0, 6), UDim2.fromOffset(20, 332), C.Phosphor)
+	fill.Size = UDim2.fromScale(0, 1)
+	TweenService:Create(fill, TweenInfo.new(1.4, Enum.EasingStyle.Quad), { Size = UDim2.fromScale((results.TotalXp % X.PerLevel) / X.PerLevel, 1) }):Play()
+	local close = Theme.button(report, "Close", UDim2.fromOffset(200, 36), UDim2.new(0.5, -100, 1, -54), "CONTINUE")
 	close.Modal = true
 	local closed = false
 	local function dismiss()
@@ -235,7 +369,7 @@ function Hud.showResults(results: Results)
 		end
 	end
 	close.MouseButton1Click:Connect(dismiss)
-	task.delay(18, dismiss)
+	task.delay(20, dismiss)
 end
 
 -- First-visit intro: photosensitivity notice, then the premise, typed.
@@ -277,12 +411,12 @@ function Hud.intro(first: boolean, onDone: () -> ())
 				return
 			end
 		end
-		text.FontFace = F.Osd
-		text.TextSize = 34
+		text.FontFace = F.Serif
+		text.TextSize = 54
 		text.TextColor3 = C.Osd
 		text.Text = Config.GameName .. "\n\n"
 		text.MaxVisibleGraphemes = -1
-		local tag = Theme.label(overlay, "Tag", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0.3, 70), F.Mono, 16, C.Rec, Config.Tagline)
+		local tag = Theme.label(overlay, "Tag", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0.3, 84), F.Mono, 16, C.Rec, Config.Tagline)
 		tag.TextXAlignment = Enum.TextXAlignment.Center
 		task.wait(2.6)
 		tag:Destroy()
@@ -291,88 +425,128 @@ function Hud.intro(first: boolean, onDone: () -> ())
 end
 
 ----------------------------------------------------------------------------
--- Layout + update
+-- Layout
 ----------------------------------------------------------------------------
-local function objectiveText(): string
-	local O = Lore.Objectives
-	if not player:GetAttribute("InShift") then
-		if player:GetAttribute("PartyRole") then
-			return "" -- the lobby screen is open
-		end
-		return if workspace:GetAttribute("HS_Mode") == "Match" then O.LobbyMatch else O.Lobby
-	end
-	if player:GetAttribute("Caged") then
-		local left = math.max(0, math.ceil(Theme.num(player, "CageEnds", 0) - workspace:GetServerTimeNow()))
-		return string.format(O.Caged, left)
-	end
-	local phase = workspace:GetAttribute("HS_Phase")
-	local fuses = Theme.num(workspace, "HS_Fuses", 0)
-	local tapes = Theme.num(workspace, "HS_Tapes", 0)
-	if phase == "Blackout" then
-		return if fuses >= Config.Shift.FusesNeeded then O.BlackoutInstall else string.format(O.Blackout, fuses, Config.Shift.FusesNeeded)
-	elseif phase == "Tapes" then
-		return if tapes >= Config.Shift.TapesNeeded then O.TapesInsert else string.format(O.Tapes, tapes, Config.Shift.TapesNeeded)
-	elseif phase == "Broadcast" then
-		if workspace:GetAttribute("HS_Drift") then
-			return O.BroadcastDrift
-		elseif not workspace:GetAttribute("HS_ControlHeld") then
-			return O.BroadcastEmpty
-		end
-		return string.format(O.Broadcast, Theme.num(workspace, "HS_Progress", 0))
-	elseif phase == "Escape" then
-		local left = math.max(0, math.ceil(Theme.num(workspace, "HS_EscapeEnds", 0) - workspace:GetServerTimeNow()))
-		return string.format(O.Escape, string.format("%d:%02d", left // 60, left % 60))
-	end
-	return ""
-end
-
 local function build()
 	gui = Theme.screen("HS_HUD", 30)
-	blip = Sfx.make(gui, "Blip", { Volume = 0.35 })
+	blip = Sfx.make(gui, "Blip", { Volume = 0.3 })
 	typeSound = Sfx.make(gui, "Type", { Volume = 0.25 })
 
-	local strip = Theme.frame(gui, "ObjectiveStrip", UDim2.new(0.6, 0, 0, 30), UDim2.new(0.2, 0, 0, 46), Color3.new(0, 0, 0), 0.55)
-	objective = Theme.label(strip, "Objective", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), F.MonoBold, 16, C.Osd, "")
-	objective.TextXAlignment = Enum.TextXAlignment.Center
-	objective.TextYAlignment = Enum.TextYAlignment.Center
-	toasts = Theme.frame(gui, "Toasts", UDim2.new(0.7, 0, 0, 80), UDim2.new(0.15, 0, 0, 84), Color3.new(0, 0, 0), 1)
-	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, 2)
-	list.Parent = toasts
+	lobbyHint = Theme.label(gui, "LobbyHint", UDim2.new(0.6, 0, 0, 24), UDim2.new(0.2, 0, 0, 52), F.Mono, 15, C.Osd, "")
+	lobbyHint.TextXAlignment = Enum.TextXAlignment.Center
 
-	subtitle = Theme.label(gui, "Subtitle", UDim2.new(0.6, 0, 0, 56), UDim2.new(0.2, 0, 0.8, 0), F.Mono, 20, C.Osd, "")
-	subtitle.TextXAlignment = Enum.TextXAlignment.Center
-	subtitle.TextStrokeTransparency = 0.2
-	subtitle.Visible = false
+	-- event line, top centre
+	bannerHead = Theme.label(gui, "BannerHead", UDim2.new(0.6, 0, 0, 30), UDim2.new(0.2, 0, 0, 58), F.Serif, 25, C.Osd, "")
+	bannerHead.TextXAlignment = Enum.TextXAlignment.Center
+	bannerHead.TextStrokeTransparency = 0.5
+	bannerRule = Theme.frame(gui, "BannerRule", UDim2.fromOffset(0, 1), UDim2.new(0.5, 0, 0, 92), C.Osd, 1)
+	bannerRule.AnchorPoint = Vector2.new(0.5, 0)
+	bannerSub = Theme.label(gui, "BannerSub", UDim2.new(0.6, 0, 0, 18), UDim2.new(0.2, 0, 0, 98), F.Mono, 12, C.Osd, "")
+	bannerSub.TextXAlignment = Enum.TextXAlignment.Center
+	bannerSub.TextTransparency = 0.25
 
 	shiftGroup = Theme.frame(gui, "Shift", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(0, 0, 0), 1)
-	recDot = Theme.frame(shiftGroup, "RecDot", UDim2.fromOffset(12, 12), UDim2.new(0.965, -76, 0.07, 46), C.Rec, 0)
+
+	-- objectives card, top right
+	card = panel(shiftGroup, "Objectives", UDim2.fromOffset(300, 118), UDim2.new(1, -324, 0, 56))
+	local tag = Theme.label(card, "Tag", UDim2.new(1, -24, 0, 12), UDim2.fromOffset(12, 8), F.Osd, 7, C.Amber, "CASE OBJECTIVES")
+	tag.TextXAlignment = Enum.TextXAlignment.Right
+	photoLine = Theme.label(card, "Photo", UDim2.new(1, -24, 0, 18), UDim2.fromOffset(12, 26), F.MonoBold, 14, C.Osd, "")
+	photoPips = pips(card, NEEDED, -8, 31, 8, false)
+	sendLine = Theme.label(card, "Send", UDim2.new(1, -24, 0, 18), UDim2.fromOffset(12, 52), F.MonoBold, 14, C.Osd, "")
+	sendPips = pips(card, NEEDED, -8, 57, 8, false)
+	cardHint = Theme.label(card, "Hint", UDim2.new(1, -24, 0, 30), UDim2.fromOffset(12, 78), F.Mono, 11, C.Osd, "")
+	cardHint.TextTransparency = 0.3
+	-- vitals under the card
+	local vitals = panel(shiftGroup, "Vitals", UDim2.fromOffset(300, 30), UDim2.new(1, -324, 0, 180))
+	Theme.label(vitals, "Tag", UDim2.fromOffset(80, 12), UDim2.fromOffset(12, 10), F.Osd, 8, C.Osd, "VITALS")
+	heartPips = pips(vitals, 5, -8, 8, 14, true)
+	location = Theme.label(shiftGroup, "Location", UDim2.fromOffset(300, 16), UDim2.new(1, -324, 0, 216), F.Mono, 12, C.Amber, "")
+	location.TextXAlignment = Enum.TextXAlignment.Right
+
+	-- noise meter, bottom left
+	local noise = panel(shiftGroup, "Noise", UDim2.fromOffset(190, 66), UDim2.new(0, 24, 1, -110))
+	Theme.label(noise, "Tag", UDim2.fromOffset(160, 12), UDim2.fromOffset(12, 8), F.Osd, 8, C.Osd, "NOISE METER")
+	for i = 1, 24 do
+		table.insert(noiseBars, Theme.frame(noise, "Bar", UDim2.fromOffset(4, 16), UDim2.fromOffset(12 + (i - 1) * 7, 26), C.Osd, 0.85))
+	end
+	for i, word in { "QUIET", "NORMAL", "LOUD" } do
+		local label = Theme.label(noise, word, UDim2.fromOffset(56, 10), UDim2.fromOffset(12 + (i - 1) * 56, 48), F.Osd, 6, if i == 3 then C.Rec else C.Osd, word)
+		label.TextTransparency = 0.4
+	end
+	staminaFill = bar(shiftGroup, "Stamina", UDim2.fromOffset(190, 4), UDim2.new(0, 24, 1, -36), C.Osd)
+
+	-- hotbar, bottom centre
+	local function slot(index: number, name: string, key: string): Frame
+		local frame = panel(shiftGroup, "Slot" .. index, UDim2.fromOffset(74, 40), UDim2.new(0.5, -117 + (index - 1) * 80, 1, -62))
+		Theme.label(frame, "Key", UDim2.fromOffset(20, 10), UDim2.fromOffset(6, 5), F.Osd, 7, C.Amber, key)
+		local label = Theme.label(frame, "Name", UDim2.new(1, 0, 0, 12), UDim2.fromOffset(0, 20), F.Osd, 8, C.Osd, name)
+		label.TextXAlignment = Enum.TextXAlignment.Center
+		return frame
+	end
+	slotCamera = slot(1, "CAMERA", "Q")
+	slotLight = slot(2, "LIGHT", "F")
+	local battery = slot(3, "BATT", "")
+	batteryFill = bar(battery, "Battery", UDim2.new(1, -16, 0, 4), UDim2.fromOffset(8, 8), C.Osd)
+
+	-- key hints, bottom right
+	local hints = Theme.label(shiftGroup, "Hints", UDim2.fromOffset(240, 70), UDim2.new(1, -264, 1, -92), F.Mono, 11, C.Osd, "Q / RMB   Raise camcorder\nCLICK   Photograph\nC   Crouch      SHIFT   Sprint\nF   Flashlight")
+	hints.TextXAlignment = Enum.TextXAlignment.Right
+	hints.TextTransparency = 0.35
+	hints.LineHeight = 1.25
+
+	toasts = Theme.frame(gui, "Toasts", UDim2.new(0.6, 0, 0, 70), UDim2.new(0.2, 0, 1, -186), Color3.new(0, 0, 0), 1)
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, 2)
+	list.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	list.Parent = toasts
+
+	-- what it says, in its own typeface
+	subtitle = Theme.label(gui, "Subtitle", UDim2.new(0.7, 0, 0, 34), UDim2.new(0.15, 0, 0.72, 0), F.Serif, 26, Color3.fromRGB(236, 226, 226), "")
+	subtitle.TextXAlignment = Enum.TextXAlignment.Center
+	subtitle.TextStrokeTransparency = 0.3
+	subtitle.Visible = false
+	askPanel = panel(gui, "Ask", UDim2.fromOffset(200, 40), UDim2.new(0.5, -100, 0.72, 44))
+	local askLabel = Theme.label(askPanel, "Label", UDim2.new(1, 0, 0, 18), UDim2.fromOffset(0, 8), F.MonoBold, 14, C.Osd, "[T]  ANSWER")
+	askLabel.TextXAlignment = Enum.TextXAlignment.Center
+	askFill = bar(askPanel, "Time", UDim2.new(1, -24, 0, 3), UDim2.fromOffset(12, 30), C.Osd)
+	local askButton = Instance.new("TextButton")
+	askButton.Size = UDim2.fromScale(1, 1)
+	askButton.BackgroundTransparency = 1
+	askButton.Text = ""
+	askButton.Parent = askPanel
+	askButton.MouseButton1Click:Connect(function()
+		send("Answer")
+		askedUntil = 0
+	end)
+
+	-- camcorder viewfinder
+	viewfinder = Theme.frame(shiftGroup, "Viewfinder", UDim2.fromOffset(360, 240), UDim2.new(0.5, -180, 0.5, -120), Color3.new(0, 0, 0), 1)
+	for _, corner in { { 0, 0, 1, 1 }, { 1, 0, -1, 1 }, { 0, 1, 1, -1 }, { 1, 1, -1, -1 } } do
+		local h = Theme.frame(viewfinder, "H", UDim2.fromOffset(28, 2), UDim2.new(corner[1], if corner[3] > 0 then 0 else -28, corner[2], if corner[4] > 0 then 0 else -2), C.Osd, 0.1)
+		local v = Theme.frame(viewfinder, "V", UDim2.fromOffset(2, 28), UDim2.new(corner[1], if corner[3] > 0 then 0 else -2, corner[2], if corner[4] > 0 then 0 else -28), C.Osd, 0.1)
+		h.ZIndex, v.ZIndex = 2, 2
+	end
+	Theme.frame(viewfinder, "Dot", UDim2.fromOffset(4, 4), UDim2.new(0.5, -2, 0.5, -2), C.Osd, 0.2)
+	recDot = Theme.frame(viewfinder, "RecDot", UDim2.fromOffset(10, 10), UDim2.fromOffset(10, 12), C.Rec, 0)
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(1, 0)
 	corner.Parent = recDot
-	Theme.label(shiftGroup, "Rec", UDim2.fromOffset(56, 16), UDim2.new(0.965, -56, 0.07, 44), F.Osd, 14, C.Osd, "REC")
-	timecode = Theme.label(shiftGroup, "Timecode", UDim2.fromOffset(200, 16), UDim2.new(0.965, -200, 0.07, 68), F.Osd, 12, C.Osd, "00:00:00")
+	Theme.label(viewfinder, "Rec", UDim2.fromOffset(60, 14), UDim2.fromOffset(26, 10), F.Osd, 11, C.Osd, "REC")
+	timecode = Theme.label(viewfinder, "Timecode", UDim2.fromOffset(160, 14), UDim2.new(1, -170, 0, 10), F.Osd, 10, C.Osd, "00:00:00")
 	timecode.TextXAlignment = Enum.TextXAlignment.Right
-	location = Theme.label(shiftGroup, "Location", UDim2.fromOffset(300, 18), UDim2.new(0.965, -300, 0.07, 90), F.Mono, 14, C.Amber, "")
-	location.TextXAlignment = Enum.TextXAlignment.Right
-	local sp = Theme.label(shiftGroup, "Sp", UDim2.fromOffset(120, 16), UDim2.new(0.965, -120, 0.07, 0), F.Osd, 14, C.Osd, "SP  BATT")
-	sp.TextXAlignment = Enum.TextXAlignment.Right
-	batteryFill = bar(shiftGroup, "Battery", UDim2.fromOffset(120, 10), UDim2.new(0.965, -120, 0.07, 24), C.Osd)
+	local shoot = Theme.button(viewfinder, "Shoot", UDim2.fromOffset(120, 34), UDim2.new(0.5, -60, 1, 14), "PHOTOGRAPH")
+	shoot.Visible = UserInputService.TouchEnabled
+	shoot.MouseButton1Click:Connect(function()
+		player:SetAttribute("ShootRequest", os.clock())
+	end)
 
-	Theme.label(shiftGroup, "NoiseTag", UDim2.fromOffset(80, 14), UDim2.new(0.035, 0, 0.9, -22), F.Osd, 10, C.Osd, "NOISE")
-	for i = 1, 8 do
-		table.insert(noiseSegments, Theme.frame(shiftGroup, "Noise" .. i, UDim2.fromOffset(12, 8 + i * 2), UDim2.new(0.035, (i - 1) * 16, 0.9, 18 - i * 2), C.Osd, 0.8))
-	end
-	staminaFill = bar(shiftGroup, "Stamina", UDim2.fromOffset(124, 5), UDim2.new(0.035, 0, 0.9, 32), C.Phosphor)
-
-	trackerStrip = Theme.frame(shiftGroup, "Tracker", UDim2.fromOffset(180, 4), UDim2.new(0.5, -90, 0.93, 0), C.Osd, 0.7)
+	trackerStrip = Theme.frame(shiftGroup, "Tracker", UDim2.fromOffset(180, 4), UDim2.new(0.5, -90, 1, -84), C.Osd, 0.7)
 	trackerDot = Theme.frame(trackerStrip, "Dot", UDim2.fromOffset(8, 14), UDim2.new(0.5, -4, 0, -5), C.Rec, 0)
-	local trackerTag = Theme.label(trackerStrip, "Tag", UDim2.fromOffset(180, 12), UDim2.fromOffset(0, 10), F.Osd, 8, C.Osd, "CARRIER SIGNAL")
-	trackerTag.TextXAlignment = Enum.TextXAlignment.Center
 	dazzleBar = bar(shiftGroup, "Dazzle", UDim2.fromOffset(90, 4), UDim2.new(0.5, -45, 0.56, 0), C.Amber)
 
 	-- locker: hold your breath
-	lockerPanel = Theme.frame(gui, "Locker", UDim2.fromOffset(360, 110), UDim2.new(0.5, -180, 0.62, 0), Color3.new(0, 0, 0), 0.5)
+	lockerPanel = panel(gui, "Locker", UDim2.fromOffset(360, 110), UDim2.new(0.5, -180, 0.58, 0))
 	lockerHint = Theme.label(lockerPanel, "Hint", UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 8), F.MonoBold, 15, C.Osd, "")
 	lockerHint.TextXAlignment = Enum.TextXAlignment.Center
 	breathFill = bar(lockerPanel, "Breath", UDim2.new(1, -40, 0, 8), UDim2.fromOffset(20, 38), C.Phosphor)
@@ -388,34 +562,23 @@ local function build()
 		send("ExitLocker")
 	end)
 
-	-- cage: wait, struggle, or the key
-	cagePanel = Theme.frame(gui, "Cage", UDim2.fromOffset(400, 120), UDim2.new(0.5, -200, 0.62, 0), Color3.new(0, 0, 0), 0.5)
-	cageTimer = Theme.label(cagePanel, "Timer", UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 8), F.MonoBold, 15, C.Rec, "")
-	cageTimer.TextXAlignment = Enum.TextXAlignment.Center
-	struggleFill = bar(cagePanel, "Struggle", UDim2.new(1, -40, 0, 8), UDim2.fromOffset(20, 38), C.Amber)
-	struggleHint = Theme.label(cagePanel, "Hint", UDim2.new(1, 0, 0, 18), UDim2.fromOffset(0, 50), F.Mono, 13, C.Osd, "")
-	struggleHint.TextXAlignment = Enum.TextXAlignment.Center
-	local struggleButton = Theme.button(cagePanel, "Struggle", UDim2.fromOffset(200, 34), UDim2.new(0.5, -100, 0, 76), "FORCE THE BARS")
-	struggleButton.MouseButton1Down:Connect(function()
-		send("Struggle", true)
-	end)
-	struggleButton.MouseButton1Up:Connect(function()
-		send("Struggle", false)
+	-- in its hands
+	grabPanel = panel(gui, "Grab", UDim2.fromOffset(380, 84), UDim2.new(0.5, -190, 0.8, 0))
+	grabHint = Theme.label(grabPanel, "Hint", UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 10), F.MonoBold, 16, C.Osd, "")
+	grabHint.TextXAlignment = Enum.TextXAlignment.Center
+	grabFill = bar(grabPanel, "Progress", UDim2.new(1, -40, 0, 10), UDim2.fromOffset(20, 42), C.Osd)
+	local grabButton = Instance.new("TextButton")
+	grabButton.Size = UDim2.fromScale(1, 1)
+	grabButton.BackgroundTransparency = 1
+	grabButton.Text = ""
+	grabButton.Modal = true
+	grabButton.Parent = grabPanel
+	grabButton.MouseButton1Down:Connect(function()
+		send("Struggle")
 	end)
 
-	-- reel transcript card
-	tapePanel = Theme.frame(gui, "Tape", UDim2.fromOffset(360, 190), UDim2.new(1, 20, 0.3, 0), Color3.fromRGB(6, 12, 9), 0.2)
-	tapePanel.Visible = false
-	local tapeStroke = Instance.new("UIStroke")
-	tapeStroke.Color = C.Phosphor
-	tapeStroke.Transparency = 0.5
-	tapeStroke.Parent = tapePanel
-	tapeTitle = Theme.label(tapePanel, "Title", UDim2.new(1, -24, 0, 18), UDim2.fromOffset(12, 10), F.Osd, 10, C.Phosphor, "")
-	tapeBody = Theme.label(tapePanel, "Body", UDim2.new(1, -24, 1, -44), UDim2.fromOffset(12, 36), F.Typewriter, 17, C.Paper, "")
-	tapeBody.LineHeight = 1.15
-
-	local fx = Theme.button(gui, "Fx", UDim2.fromOffset(110, 22), UDim2.new(0.965, -110, 1, -34), "FX: FULL")
-	fx.TextSize = 9
+	local fx = Theme.button(gui, "Fx", UDim2.fromOffset(110, 22), UDim2.new(0, 24, 1, -26), "FX: FULL")
+	fx.TextSize = 8
 	fx.MouseButton1Click:Connect(function()
 		Vhs.ReducedFlashing = not Vhs.ReducedFlashing
 		player:SetAttribute("ReducedFlashing", Vhs.ReducedFlashing)
@@ -423,35 +586,51 @@ local function build()
 	end)
 end
 
-local function setHold(on: boolean)
-	if holdingAction == on then
-		return
-	end
-	holdingAction = on
-	if player:GetAttribute("Hidden") then
-		send("HoldBreath", on)
-	elseif player:GetAttribute("Caged") then
-		send("Struggle", on)
+local function setPips(list: { Frame }, lit: number, color: Color3)
+	for i, pip in list do
+		pip.BackgroundColor3 = if i <= lit then color else C.Osd
+		pip.BackgroundTransparency = if i <= lit then 0 else 0.82
 	end
 end
 
 local function update()
 	local inShift = player:GetAttribute("InShift") == true
 	local hidden = player:GetAttribute("Hidden") == true
-	local caged = player:GetAttribute("Caged") == true
-	shiftGroup.Visible = inShift
-	local objectiveStrip = objective.Parent :: Frame
-	objective.Text = objectiveText()
-	objectiveStrip.Visible = objective.Text ~= ""
+	local grabbed = player:GetAttribute("Grabbed") == true
+	shiftGroup.Visible = inShift and not grabbed
 	lockerPanel.Visible = inShift and hidden
-	cagePanel.Visible = inShift and caged
+	grabPanel.Visible = inShift and grabbed
+	askPanel.Visible = inShift and os.clock() < askedUntil
+	if askPanel.Visible then
+		askFill.Size = UDim2.fromScale(math.clamp((askedUntil - os.clock()) / askedFor, 0, 1), 1)
+	end
 	if not inShift then
+		local O = Lore.Objectives
+		lobbyHint.Text = if player:GetAttribute("PartyRole") then "" elseif workspace:GetAttribute("HS_Mode") == "Match" then O.LobbyMatch else O.Lobby
 		return
 	end
+	lobbyHint.Text = ""
 
-	local t = os.clock() - shiftJoinedAt
-	timecode.Text = string.format("%02d:%02d:%02d", t // 60, t % 60, (t * 30) % 30)
-	recDot.Visible = (t % 1.2) < 0.7
+	-- objectives
+	local phase = workspace:GetAttribute("HS_Phase")
+	local photos = Theme.num(workspace, "HS_Photos", 0)
+	local sentCount = Theme.num(workspace, "HS_Sent", 0)
+	local O = Lore.Objectives
+	if phase == "Return" then
+		local left = math.max(0, math.ceil(Theme.num(workspace, "HS_ReturnEnds", 0) - workspace:GetServerTimeNow()))
+		photoLine.Text = O.Return
+		photoLine.TextColor3 = Color3.fromRGB(214, 40, 40)
+		sendLine.Text = string.format("LOCKDOWN IN %d:%02d", left // 60, left % 60)
+		cardHint.Text = O.ReturnHint
+	else
+		photoLine.Text = O.Photograph
+		photoLine.TextColor3 = if photos >= NEEDED then C.Phosphor else C.Osd
+		sendLine.Text = O.Send
+		cardHint.Text = if photos > sentCount then O.SendHint else O.PhotographHint
+	end
+	setPips(photoPips, photos, C.Phosphor)
+	setPips(sendPips, sentCount, C.Amber)
+	setPips(heartPips, Theme.num(player, "Hearts", 0), Color3.fromRGB(214, 40, 40))
 
 	local camera = workspace.CurrentCamera
 	if camera then
@@ -459,20 +638,30 @@ local function update()
 		local origin = Config.World.FacilityOrigin
 		local cx = math.floor((p.X - origin.X) / Config.World.CellSize) + 1
 		local cy = math.floor((p.Z - origin.Z) / Config.World.CellSize) + 1
-		location.Text = Grid.regionAt(MapData.Regions, cx, cy) or "SUBLEVEL 1"
+		location.Text = Grid.regionAt(MapData.Regions, cx, cy) or "WARD C CORRIDOR"
 	end
 
+	-- noise: bars fill left to right, the last third reads as danger
+	local noise = Theme.num(player, "Noise", 0)
+	local deadAir = Theme.num(workspace, "HS_DeadAirEnds", 0) > workspace:GetServerTimeNow()
+	for i, barFrame in noiseBars do
+		local lit = noise >= i / #noiseBars - 0.02
+		barFrame.BackgroundTransparency = if lit then 0.05 else 0.85
+		barFrame.BackgroundColor3 = if deadAir then C.Phosphor elseif i > 16 then Color3.fromRGB(214, 40, 40) else C.Osd
+	end
+	staminaFill.Size = UDim2.fromScale(math.clamp(Hud.Stamina, 0, 1), 1)
 	local battery = Theme.num(player, "Battery", 1)
 	batteryFill.Size = UDim2.fromScale(battery, 1)
 	batteryFill.BackgroundColor3 = if battery < 0.2 then C.Rec else C.Osd
-	local noise = Theme.num(player, "Noise", 0)
-	local deadAir = Theme.num(workspace, "HS_DeadAirEnds", 0) > workspace:GetServerTimeNow()
-	for i, segment in noiseSegments do
-		local lit = noise >= i / 8 - 0.06
-		segment.BackgroundTransparency = if lit then 0 else 0.8
-		segment.BackgroundColor3 = if deadAir then C.Phosphor elseif i > 5 then C.Rec else C.Osd
-	end
-	staminaFill.Size = UDim2.fromScale(math.clamp(Hud.Stamina, 0, 1), 1)
+	slotCamera.BackgroundColor3 = if Hud.CameraUp then C.Osd else Color3.fromRGB(6, 7, 7)
+	slotCamera.BackgroundTransparency = if Hud.CameraUp then 0.55 else 0.35
+	slotLight.BackgroundColor3 = if Hud.LightOn then C.Osd else Color3.fromRGB(6, 7, 7)
+	slotLight.BackgroundTransparency = if Hud.LightOn then 0.55 else 0.35
+
+	viewfinder.Visible = Hud.CameraUp and not hidden
+	local t = os.clock() - shiftJoinedAt
+	timecode.Text = string.format("%02d:%02d:%02d", t // 60, t % 60, (t * 30) % 30)
+	recDot.Visible = (t % 1.2) < 0.7
 
 	local hasTracker = player:GetAttribute("Pass_Tracker") == true
 	trackerStrip.Visible = hasTracker and Hud.TrackerAngle ~= nil
@@ -489,25 +678,17 @@ local function update()
 		local breath = Theme.num(player, "Breath", 1)
 		breathFill.Size = UDim2.fromScale(breath, 1)
 		local near = player:GetAttribute("FawnAtLocker") == true
-		lockerHint.Text = if near then "SHE IS RIGHT OUTSIDE — HOLD [SPACE]" else "HIDDEN.  [SPACE] HOLD BREATH"
+		lockerHint.Text = if near then "IT IS RIGHT OUTSIDE — HOLD [SPACE]" else "HIDDEN.  [SPACE] HOLD BREATH"
 		lockerHint.TextColor3 = if near then C.Rec else C.Osd
 		breathFill.BackgroundColor3 = if breath < 0.25 then C.Rec else C.Phosphor
 	end
-	if caged then
-		local left = math.max(0, math.ceil(Theme.num(player, "CageEnds", 0) - workspace:GetServerTimeNow()))
-		cageTimer.Text = `SHE COMES BACK FOR YOU IN {left}s`
-		struggleFill.Size = UDim2.fromScale(Theme.num(player, "StruggleProgress", 0), 1)
-		local free = Theme.num(player, "StrugglesLeft", 0)
-		local keys = Theme.num(player, "Keys", 0)
-		if free > 0 and player:GetAttribute("CanStruggle") then
-			struggleHint.Text = "HOLD [SPACE] TO FORCE THE BARS — ONCE PER SHIFT"
-		elseif free > 0 then
-			struggleHint.Text = "CATCH YOUR BREATH... A CREWMATE CAN OPEN THE GATE"
-		elseif keys > 0 then
-			struggleHint.Text = `YOU HOLD {keys} RUSTED KEY(S) — USE THE KEY ON THE WALL`
-		else
-			struggleHint.Text = "WAIT FOR YOUR CREW — OR REACH FOR THE KEY ON THE WALL"
-		end
+	if grabbed then
+		local can = Theme.num(player, "BreakFrees", 0) > 0
+		grabHint.Text = if can then "TAP [E] — BREAK FREE" else "IT HAS YOU."
+		grabHint.TextColor3 = if can then C.Osd else Color3.fromRGB(214, 40, 40)
+		local back = grabFill.Parent :: Frame
+		back.Visible = can
+		grabFill.Size = UDim2.fromScale(Theme.num(player, "GrabProgress", 0), 1)
 	end
 end
 
@@ -520,23 +701,30 @@ function Hud.init()
 	end)
 	player:GetAttributeChangedSignal("Hidden"):Connect(function()
 		hiddenSince = os.clock()
-		holdingAction = false
-	end)
-	player:GetAttributeChangedSignal("Caged"):Connect(function()
-		holdingAction = false
+		holdingBreath = false
 	end)
 	UserInputService.InputBegan:Connect(function(input, processed)
-		if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonA then
-			setHold(true)
-		elseif (input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.ButtonB) and not processed then
-			if player:GetAttribute("Hidden") and os.clock() - hiddenSince > 0.6 then
+		local key = input.KeyCode
+		if key == Enum.KeyCode.Space or key == Enum.KeyCode.ButtonA then
+			if player:GetAttribute("Hidden") and not holdingBreath then
+				holdingBreath = true
+				send("HoldBreath", true)
+			end
+		elseif key == Enum.KeyCode.E or key == Enum.KeyCode.ButtonX then
+			if player:GetAttribute("Grabbed") then
+				send("Struggle")
+			elseif player:GetAttribute("Hidden") and not processed and os.clock() - hiddenSince > 0.6 then
 				send("ExitLocker")
 			end
+		elseif key == Enum.KeyCode.T and not processed and os.clock() < askedUntil then
+			send("Answer")
+			askedUntil = 0
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(input)
-		if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonA then
-			setHold(false)
+		if (input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.ButtonA) and holdingBreath then
+			holdingBreath = false
+			send("HoldBreath", false)
 		end
 	end)
 	local acc = 0

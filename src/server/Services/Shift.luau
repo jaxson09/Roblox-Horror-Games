@@ -1,18 +1,19 @@
 --!strict
 --[[
-	Shift — the run itself.
+	Shift — one case, start to finish.
 
-	  Idle       nobody below. The lobby elevator starts a shift.
-	  Blackout   find three fuses, install them at the breaker.
-	  Tapes      power is on, FAWN is awake. Recover four voice reels.
-	  Broadcast  load the reels at Control and hold the room while the
-	             recall tone transmits (it draws FAWN to you).
-	  Escape     blast door opens, FAWN is enraged, lockdown timer runs.
-	  Ended      results, then the sublevel resets.
+	  Idle     nobody on the ward. A lobby starting sends a crew up.
+	  Case     photograph the subject (5), and send each piece of evidence out
+	           through a pneumatic tube station (5). Both counts are shared by
+	           the crew. Stations are loud and only hold two canisters each.
+	  Return   all evidence sent: the elevator comes back, the power fails,
+	           HUSH knows you are leaving. Reach the elevator before lockdown.
+	  Ended    field reports, then the ward resets.
 
-	Crews can drop in by elevator at any point before the escape. Caught players
-	are caged in the Kennel: a teammate can free them, they get one free
-	break-out, and after that the Rusted Key (the self-revive product).
+	Being caught is a grab, not a death: a close-up, a few seconds to wrench
+	free (if you have a break-free left), otherwise you lose a heart and wake
+	up strapped to a recovery bed somewhere else on the ward. No hearts left
+	and it keeps you — and starts using your name.
 ]]
 
 local Debris = game:GetService("Debris")
@@ -23,7 +24,6 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Grid = require(ReplicatedStorage.Shared.Grid)
 local Lore = require(ReplicatedStorage.Shared.Lore)
-local MapData = require(ReplicatedStorage.Shared.MapData)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Sfx = require(ReplicatedStorage.Shared.Sfx)
 local Facility = require(script.Parent.Parent.World.Facility)
@@ -36,6 +36,7 @@ local Store = require(script.Parent.Store)
 local Shift = {}
 
 local S = Config.Shift
+local P = Config.Player
 local rng = Random.new()
 
 local facility: Facility.Facility
@@ -43,20 +44,17 @@ local lobby: Lobby.Lobby
 
 local phase = "Idle"
 local shiftId = 0
-local fuses = 0
-local tapes = 0
-local progress = 0
-local drift = false
-local nextDriftAt = 0
-local escapeEnds = 0
+local photos = 0
+local sent = 0
+local lastPhotoAt = 0
+local returnEnds = 0
 local wakeAt = 0
 local endedAt = 0
 local startedAt = 0
+local scareReadyAt = 0
 local difficulty: Config.Difficulty = Config.Difficulties.Normal
 local difficultyKey = "Normal"
 local onEnded: (() -> ())? = nil
-local nextLureAt = 0
-local scareReadyAt = 0
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -65,11 +63,10 @@ end
 local function publish()
 	workspace:SetAttribute("HS_Phase", phase)
 	workspace:SetAttribute("HS_ShiftId", shiftId)
-	workspace:SetAttribute("HS_Fuses", fuses)
-	workspace:SetAttribute("HS_Tapes", tapes)
-	workspace:SetAttribute("HS_Progress", math.floor(progress * 100))
-	workspace:SetAttribute("HS_Drift", drift)
-	workspace:SetAttribute("HS_EscapeEnds", escapeEnds)
+	workspace:SetAttribute("HS_Photos", photos)
+	workspace:SetAttribute("HS_Sent", sent)
+	workspace:SetAttribute("HS_Needed", S.PhotosNeeded)
+	workspace:SetAttribute("HS_ReturnEnds", returnEnds)
 	workspace:SetAttribute("HS_Difficulty", difficultyKey)
 end
 
@@ -80,6 +77,22 @@ end
 
 local function toast(player: Player, text: string, kind: string?)
 	Remotes.ToClient:FireClient(player, "Toast", text, kind or "info")
+end
+
+-- A big line at the top of one player's screen. `tone` colours it.
+local function banner(player: Player, key: string, tone: string, a: any?, b: any?)
+	local entry = Lore.Banners[key]
+	if entry then
+		Remotes.ToClient:FireClient(player, "Banner", string.format(entry[1], a, b), string.format(entry[2], a, b), tone)
+	end
+end
+
+local function bannerShift(key: string, tone: string, a: any?, b: any?)
+	for _, member in Crew.Members do
+		if member.InShift then
+			banner(member.Player, key, tone, a, b)
+		end
+	end
 end
 
 local function toastShift(text: string, kind: string?)
@@ -98,13 +111,12 @@ local function acting(player: Player): Crew.Member?
 	return nil
 end
 
-local function regionOf(position: Vector3): string?
-	local cx, cy = Facility.cellOf(facility, position)
-	return Grid.regionAt(MapData.Regions, cx, cy)
+local function maxHearts(): number
+	return difficulty.Hearts + 1 -- adrenaline can take you one over
 end
 
 ----------------------------------------------------------------------------
--- Lockers and cages
+-- Lockers
 ----------------------------------------------------------------------------
 local function leaveLocker(member: Crew.Member)
 	local locker = member.Locker
@@ -135,7 +147,7 @@ local function enterLocker(player: Player, locker: Facility.Locker)
 	locker.Occupant = player
 	locker.Prompt.Enabled = false
 	member.Locker = locker
-	member.Breath = Config.Player.BreathSeconds
+	member.Breath = P.BreathSeconds
 	member.Loud = 0
 	member.HoldingBreath = false
 	Crew.setLight(member, false)
@@ -150,63 +162,22 @@ local function enterLocker(player: Player, locker: Facility.Locker)
 	end
 end
 
-local function refreshCage(cage: Facility.Cage)
-	local occupied = #cage.Occupants > 0
-	cage.RescuePrompt.Enabled = occupied
-	cage.KeyPrompt.Enabled = occupied
-end
-
-local function leaveCage(member: Crew.Member): Facility.Cage?
-	local cage = member.Cage
-	if not cage then
-		return nil
-	end
-	local index = table.find(cage.Occupants, member.Player)
-	if index then
-		table.remove(cage.Occupants, index)
-	end
-	member.Cage = nil
-	member.CageEnds = 0
-	member.Struggling = false
-	member.StruggleProgress = 0
-	member.Player:SetAttribute("StruggleProgress", 0)
-	refreshCage(cage)
-	return cage
-end
-
-local function free(member: Crew.Member, how: string)
-	local cage = leaveCage(member)
-	if not cage then
-		return
-	end
-	Crew.sync(member)
-	Crew.setAnchored(member.Player, false)
-	Crew.teleport(member.Player, cage.ExitCF)
-	toast(member.Player, how, "good")
-	Fawn.hear(cage.Gate.Position, 0.5)
-	-- only swing the gate when the cage is empty, or the others would walk out still "caged"
-	if #cage.Occupants == 0 then
-		Facility.setCageOpen(cage, true)
-		task.delay(2.5, function()
-			Facility.setCageOpen(cage, false)
-		end)
-	else
-		local rattle = cage.Gate:FindFirstChild("CageRattle") :: Sound?
-		if rattle then
-			rattle:Play()
-		end
-	end
-end
-
+----------------------------------------------------------------------------
+-- Leaving the ward, one way or another
+----------------------------------------------------------------------------
 local function sendResults(member: Crew.Member, outcome: string)
-	local profile = Data.get(member.Player)
+	local X = Config.Xp
+	local xp = member.Photos * X.Photo + member.Sent * X.Sent + member.Files * X.File + (if outcome == "Escaped" then X.Escaped else 0)
+	local total = Data.addXp(member.Player, xp)
 	Remotes.ToClient:FireClient(member.Player, "Results", {
 		Outcome = outcome,
 		Seconds = math.floor(os.clock() - member.JoinedAt),
-		Reels = member.Reels,
-		Fuses = member.Fuses,
-		Rescues = member.Rescues,
-		Escapes = if profile then profile.Escapes else 0,
+		Photos = member.Photos,
+		Sent = member.Sent,
+		Files = member.Files,
+		Caught = member.Caught,
+		Xp = xp,
+		TotalXp = total,
 	})
 end
 
@@ -222,7 +193,7 @@ local function eliminate(member: Crew.Member, outcome: string)
 		return
 	end
 	leaveLocker(member)
-	leaveCage(member)
+	member.Grabbed = false
 	member.Eliminated = true
 	member.InShift = false
 	member.Player:SetAttribute("Hunted", false)
@@ -230,7 +201,9 @@ local function eliminate(member: Crew.Member, outcome: string)
 	Crew.sync(member)
 	Fawn.addSkin(member.Player)
 	sendResults(member, outcome)
-	toastShift(`{member.Player.DisplayName} IS GONE. COUNT YOUR CREW.`, "bad")
+	if outcome == "Taken" then
+		toastShift(`{string.upper(member.Player.DisplayName)} HAS BEEN ADMITTED. IT HAS THEIR VOICE NOW.`, "bad")
+	end
 	task.delay(0.6, returnToSurface, member)
 end
 
@@ -241,48 +214,38 @@ local function escape(member: Crew.Member)
 	Crew.setLight(member, false)
 	Crew.sync(member)
 	Data.bump(member.Player, "Escapes", 1)
-	task.spawn(Data.save, member.Player)
 	sendResults(member, "Escaped")
+	task.spawn(Data.save, member.Player)
 	returnToSurface(member)
-	toastShift(`{member.Player.DisplayName} REACHED THE SURFACE.`, "good")
+	toastShift(`{string.upper(member.Player.DisplayName)} MADE IT TO THE ELEVATOR.`, "good")
 end
 
+----------------------------------------------------------------------------
+-- Grabs, hearts, recovery
+----------------------------------------------------------------------------
 local function catch(member: Crew.Member)
 	if not Crew.isActive(member) then
 		return
 	end
 	leaveLocker(member)
 	local player = member.Player
-	local cage = facility.Cages[1]
-	for _, candidate in facility.Cages do
-		if #candidate.Occupants < #cage.Occupants then
-			cage = candidate
-		end
-	end
-	member.Cage = cage
-	member.CagedAt = os.clock()
-	member.CageEnds = now() + difficulty.CageSeconds + 2
-	member.Struggling = false
-	member.StruggleProgress = 0
-	table.insert(cage.Occupants, player)
+	member.Grabbed = true
+	member.GrabEnds = now() + S.GrabSeconds
+	member.GrabProgress = 0
+	member.Caught += 1
 	player:SetAttribute("Hunted", false)
+	player:SetAttribute("GrabProgress", 0)
 	Crew.setLight(member, false)
 	Crew.setAnchored(player, true)
 	Crew.sync(member)
 	Data.bump(player, "Caught", 1)
-	Remotes.ToClient:FireClient(player, "Jumpscare", Fawn.model())
+	local line = string.format(Lore.GrabLines[rng:NextInteger(1, #Lore.GrabLines)], string.upper(player.DisplayName))
+	Remotes.ToClient:FireClient(player, "Grab", Fawn.model(), line, member.BreakFrees > 0, S.GrabSeconds)
 	for _, other in Crew.Members do
 		if other.InShift and other ~= member then
-			toast(other.Player, `{player.DisplayName} WAS TAKEN TO THE KENNEL.`, "bad")
+			toast(other.Player, `IT HAS {string.upper(player.DisplayName)}.`, "bad")
 		end
 	end
-	task.delay(2.1, function()
-		if member.Cage == cage and player.Parent then
-			Crew.setAnchored(player, false)
-			Crew.teleport(player, cage.InsideCF)
-			refreshCage(cage)
-		end
-	end)
 end
 
 local function lockerFound(member: Crew.Member)
@@ -293,232 +256,204 @@ local function lockerFound(member: Crew.Member)
 	catch(member)
 end
 
-local function stepCages(dt: number)
-	for _, member in Crew.Members do
-		local cage = member.Cage
-		if not cage or not member.InShift then
-			continue
-		end
-		if now() > member.CageEnds then
-			eliminate(member, "Taken")
-			continue
-		end
-		local canStruggle = member.StrugglesLeft > 0 and os.clock() - member.CagedAt > S.StruggleDelay
-		member.Player:SetAttribute("CanStruggle", canStruggle)
-		if member.Struggling and canStruggle then
-			member.StruggleProgress += dt / S.StruggleHold
-			if rng:NextNumber() < dt * 1.2 then
-				Fawn.hear(cage.Gate.Position, 0.45)
-				local rattle = cage.Gate:FindFirstChild("CageRattle") :: Sound?
-				if rattle then
-					rattle:Play()
-				end
-			end
-			if member.StruggleProgress >= 1 then
-				member.StrugglesLeft -= 1
-				free(member, "YOU FORCED THE BARS.")
-			end
-		else
-			member.StruggleProgress = math.max(0, member.StruggleProgress - dt * 0.4)
-		end
-		member.Player:SetAttribute("StruggleProgress", math.round(member.StruggleProgress * 100) / 100)
-	end
+-- The bed farthest from HUSH (with a little randomness so it is not always the same one).
+local function recoveryBed(): Facility.Bed
+	local fawnPos = Fawn.position()
+	local ranked = table.clone(facility.Beds)
+	table.sort(ranked, function(a: Facility.Bed, b: Facility.Bed): boolean
+		return (a.Position - fawnPos).Magnitude > (b.Position - fawnPos).Magnitude
+	end)
+	return ranked[rng:NextInteger(1, math.min(3, #ranked))]
 end
 
-----------------------------------------------------------------------------
--- Objectives
-----------------------------------------------------------------------------
-local function powerOn()
-	if phase ~= "Blackout" then
+local function resolveGrab(member: Crew.Member, brokeFree: boolean)
+	local player = member.Player
+	member.Grabbed = false
+	member.GrabProgress = 0
+	player:SetAttribute("GrabProgress", 0)
+	if brokeFree then
+		member.BreakFrees -= 1
+		Crew.setAnchored(player, false)
+		Crew.sync(member)
+		Fawn.pause(3.2) -- it reels; you have a head start
+		Remotes.ToClient:FireClient(player, "GrabEnd", true)
+		banner(player, "BrokeFree", "good")
 		return
 	end
-	for _, socket in facility.BreakerSockets do
-		socket.Color = Config.Colors.Amber
-		socket.Material = Enum.Material.Neon
-	end
-	facility.BreakerPrompt.Enabled = false
-	local box = facility.BreakerPrompt.Parent :: Instance
-	local insert = box:FindFirstChild("FuseInsert") :: Sound?
-	local hum = box:FindFirstChild("PowerUp") :: Sound?
-	if insert then
-		insert:Play()
-	end
-	setPhase("Tapes")
-	task.delay(1.4, function()
-		if phase ~= "Tapes" then
+	member.Hearts -= 1
+	if member.Hearts <= 0 then
+		-- a banked adrenaline shot saves you once, automatically
+		local profile = Data.get(player)
+		if profile and profile.Keys > 0 then
+			Data.addKeys(player, -1)
+			member.Hearts = 1
+			toast(player, `ADRENALINE. ({profile.Keys} SHOT(S) LEFT)`, "good")
+		else
+			Remotes.ToClient:FireClient(player, "GrabEnd", false)
+			member.InShift = true
+			eliminate(member, "Taken")
 			return
 		end
-		if hum then
-			hum:Play()
+	end
+	Crew.sync(member)
+	Remotes.ToClient:FireClient(player, "GrabEnd", false)
+	local bed = recoveryBed()
+	task.delay(0.9, function()
+		if player.Parent and member.InShift then
+			Crew.teleport(player, bed.WakeCF)
+			Crew.setAnchored(player, false)
+			banner(player, "Recovery", "bad", member.Hearts)
 		end
-		Remotes.ToClient:FireAllClients("Flicker", 2.2)
-		Facility.setPower(facility, true)
-		for _, door in facility.Doors do
-			if door.Kind == "L" then
-				Facility.unlockDoor(facility, door, false)
-			end
-		end
-		for _, item in facility.Items do
-			if item.Kind == "Reel" then
-				item.Prompt.Enabled = true
-				local led = item.Root:FindFirstChild("ReelLed") :: BasePart?
-				if led then
-					led.Color = Config.Colors.Phosphor
-					local glow = led:FindFirstChildOfClass("PointLight")
-					if glow then
-						glow.Color = Config.Colors.Phosphor
-					end
-				end
-			end
-		end
-		facility.ConsoleScreen.Text = "RECALL TONE\nLOAD 4 REELS"
-		toastShift("POWER RESTORED. SOMETHING IN THE KENNEL HEARD IT.", "bad")
-		-- the generator is the loudest thing down here
-		wakeAt = 0
-		Fawn.wake()
-		Fawn.hear((box :: BasePart).Position, 4, true)
 	end)
 end
 
-local function startBroadcast()
-	setPhase("Broadcast")
-	progress = 0
-	drift = false
-	nextDriftAt = os.clock() + rng:NextNumber(S.RetuneEvery[1], S.RetuneEvery[2])
-	facility.ConsolePrompt.Enabled = false
-	facility.ConsolePrompt.ActionText = "Retune"
-	facility.ConsolePrompt.HoldDuration = 1.5
-	local desk = facility.ConsolePrompt.Parent :: Instance
-	local start = desk:FindFirstChild("TapeStart") :: Sound?
-	local tone = desk:FindFirstChild("BroadcastTone") :: Sound?
-	if start then
-		start:Play()
-	end
-	if tone then
-		tone:Play()
-	end
-	Fawn.setLure(facility.ConsolePosition)
-	toastShift("TRANSMITTING. SHE ALWAYS COMES TO A VOICE.", "bad")
-	publish()
-end
-
-local function startEscape()
-	setPhase("Escape")
-	escapeEnds = now() + S.EscapeSeconds
-	drift = false
-	facility.ConsolePrompt.Enabled = false
-	facility.ConsoleScreen.Text = "RECALL TONE SENT\nEVACUATE"
-	local desk = facility.ConsolePrompt.Parent :: Instance
-	local tone = desk:FindFirstChild("BroadcastTone") :: Sound?
-	if tone then
-		tone:Stop()
-	end
-	for _, door in facility.Doors do
-		if door.Kind ~= "D" then
-			Facility.unlockDoor(facility, door, true)
-		end
-	end
-	Facility.setAlarm(facility, true)
-	Fawn.setLure(nil)
-	Fawn.setEnraged(true)
-	Remotes.ToClient:FireAllClients("Flicker", 1.5)
-	toastShift("BLAST DOOR OPEN. RUN.", "bad")
-	publish()
-end
-
-local function stepBroadcast(dt: number)
-	local occupied = false
-	for _, member in Crew.active() do
-		local pos = Crew.position(member.Player)
-		if pos and regionOf(pos) == "CONTROL" then
-			occupied = true
-			break
-		end
-	end
-	workspace:SetAttribute("HS_ControlHeld", occupied)
-	if occupied and not drift then
-		progress = math.min(1, progress + dt / S.BroadcastSeconds)
-	end
-	if not drift and os.clock() >= nextDriftAt then
-		drift = true
-		facility.ConsolePrompt.Enabled = true
-	end
-	if os.clock() >= nextLureAt then
-		nextLureAt = os.clock() + 5
-		Fawn.hear(facility.ConsolePosition, 2.2, true)
-	end
-	local percent = math.floor(progress * 100)
-	facility.ConsoleScreen.Text = if drift then "SIGNAL DRIFT\nRETUNE" else `RECALL TONE\n{percent}%`
-	publish()
-	if progress >= 1 then
-		startEscape()
-	end
-end
-
-local function stepEscape()
-	local map = facility.Map
-	for _, member in Crew.active() do
-		local pos = Crew.position(member.Player)
-		if pos and not member.Locker then
-			local cx, cy = Facility.cellOf(facility, pos)
-			if Grid.charAt(map, cx, cy) == "Z" then
-				escape(member)
+local function stepGrabs()
+	for _, member in Crew.Members do
+		if member.Grabbed and member.InShift then
+			if member.BreakFrees > 0 and member.GrabProgress >= 1 then
+				resolveGrab(member, true)
+			elseif now() >= member.GrabEnds then
+				resolveGrab(member, false)
 			end
 		end
 	end
-	if now() > escapeEnds then
-		for _, member in Crew.inPlay() do
-			eliminate(member, "Lockdown")
+end
+
+----------------------------------------------------------------------------
+-- The job: photographs and tube stations
+----------------------------------------------------------------------------
+local function refreshStations()
+	local carrying = photos - sent
+	for _, station in facility.Stations do
+		station.Prompt.Enabled = phase == "Case" and carrying > 0 and station.Left > 0
+		station.Prompt.ActionText = if station.Left > 0 then `Send evidence ({station.Left} left)` else "Out of canisters"
+	end
+	workspace:SetAttribute("HS_Carrying", carrying)
+end
+
+local function startReturn()
+	setPhase("Return")
+	returnEnds = now() + S.ReturnSeconds
+	refreshStations()
+	Facility.setElevator(facility, true)
+	bannerShift("Exit", "good")
+	publish()
+	-- a breath, then the lights go
+	task.delay(5, function()
+		if phase ~= "Return" then
+			return
 		end
+		Remotes.ToClient:FireAllClients("PowerOut")
+		Facility.setPower(facility, false)
+		Fawn.setEnraged(true)
+		bannerShift("Power", "bad")
+	end)
+end
+
+local function takePhoto(member: Crew.Member, look: Vector3)
+	local player = member.Player
+	local pos = Crew.position(player)
+	if not pos or os.clock() - member.LastPhotoAt < P.PhotoCooldown then
+		return
+	end
+	member.LastPhotoAt = os.clock()
+	-- the flash goes off whether or not anything was in frame, and it is not quiet
+	for _, other in Crew.Members do
+		if other.InShift then
+			Remotes.ToClient:FireClient(other.Player, "Flash", pos, other == member)
+		end
+	end
+	if Fawn.state() == "Dormant" then
+		wakeAt = 0
+	end
+	Fawn.hear(pos, 1.1)
+
+	local target = Fawn.position() + Vector3.new(0, 1.5, 0)
+	local toward = target - (pos + Vector3.new(0, 1.5, 0))
+	local inFrame = toward.Magnitude <= P.PhotoRange
+		and look.Magnitude > 0.5
+		and look.Unit:Dot(toward.Unit) >= P.PhotoAim
+		and Grid.lineOfSight(facility.Map, pos.X, pos.Z, target.X, target.Z)
+	if not inFrame then
+		banner(player, "NoSubject", "info")
+		return
+	end
+	if photos >= S.PhotosNeeded or phase ~= "Case" then
+		toast(player, "YOU HAVE ALL THE PHOTOGRAPHS YOU NEED.", "info")
+		return
+	end
+	if os.clock() - lastPhotoAt < P.PhotoSpacing then
+		banner(player, "TooSoon", "info")
+		return
+	end
+	lastPhotoAt = os.clock()
+	photos += 1
+	member.Photos += 1
+	bannerShift(if photos >= S.PhotosNeeded then "PhotoAll" else "Photo", "good", photos, S.PhotosNeeded)
+	refreshStations()
+	publish()
+end
+
+local function sendEvidence(player: Player, station: Facility.Station)
+	local member = acting(player)
+	if not member or phase ~= "Case" or photos - sent <= 0 or station.Left <= 0 then
+		return
+	end
+	sent += 1
+	member.Sent += 1
+	station.Left -= 1
+	Facility.setStationLamp(station)
+	local sound = station.Root:FindFirstChild("TubeSend") :: Sound?
+	if sound then
+		sound:Play()
+	end
+	Remotes.ToClient:FireAllClients("Shake", 0.4, 0.5, station.Position)
+	Fawn.hear(station.Position, 2.4, true) -- the whole ward hears a canister go
+	bannerShift("Sent", "good", sent, S.PhotosNeeded)
+	refreshStations()
+	publish()
+	if sent >= S.PhotosNeeded then
+		startReturn()
 	end
 end
 
-local function onItem(item: Facility.Item, player: Player)
+local function searchCabinet(player: Player, cabinet: Facility.Cabinet)
+	local member = acting(player)
+	if not member then
+		return
+	end
+	local sound = cabinet.Root:FindFirstChild("Locker") :: Sound?
+	if sound then
+		sound:Play()
+	end
+	Fawn.hear(cabinet.Position, 0.35)
+	cabinet.Prompt.Enabled = false
+	local file = cabinet.File
+	if not file then
+		toast(player, "NOTHING BUT DUST.", "info")
+		return
+	end
+	cabinet.File = nil
+	cabinet.Root:SetAttribute("HasFile", false)
+	member.Files += 1
+	local profile = Data.get(player)
+	if profile then
+		profile.Notes[file] = true
+	end
+	Remotes.ToClient:FireClient(player, "Note", file)
+	toastShift(`CASE FILE RECOVERED — {string.upper(player.DisplayName)}`, "good")
+end
+
+local function takeBattery(item: Facility.Item, player: Player)
 	local member = acting(player)
 	if not member or not item.Root.Parent then
 		return
 	end
-	local position = item.Root.Position
-	if item.Kind == "Note" then
-		local profile = Data.get(player)
-		if profile and item.Data then
-			profile.Notes[item.Data] = true
-		end
-		Remotes.ToClient:FireClient(player, "Note", item.Data)
-		return
-	end
-	Sfx.playAt(position, "Pickup", { Volume = 0.6, MaxDistance = 50 })
+	Sfx.playAt(item.Root.Position, "Pickup", { Volume = 0.6, MaxDistance = 50 })
 	item.Root:Destroy()
-	if item.Kind == "Battery" then
-		member.Battery = math.min(1, member.Battery + Config.Player.BatteryPickup)
-		player:SetAttribute("Battery", member.Battery)
-		toast(player, "BATTERY +50%", "good")
-	elseif item.Kind == "Fuse" then
-		fuses += 1
-		member.Fuses += 1
-		toastShift(`FUSE {fuses}/{S.FusesNeeded}  —  {player.DisplayName}`, "info")
-		Fawn.hear(position, 0.3)
-		if fuses >= S.FusesNeeded then
-			facility.BreakerPrompt.Enabled = true
-		end
-		publish()
-	elseif item.Kind == "Reel" then
-		tapes += 1
-		member.Reels += 1
-		Data.bump(player, "Reels", 1)
-		local reel = Lore.Reels[math.min(tapes, #Lore.Reels)]
-		for _, other in Crew.Members do
-			if other.InShift then
-				Remotes.ToClient:FireClient(other.Player, "Tape", tapes, reel.Title, reel.Body)
-			end
-		end
-		Fawn.hear(position, 0.4)
-		if tapes >= S.TapesNeeded then
-			facility.ConsolePrompt.Enabled = true
-			facility.ConsoleScreen.Text = "RECALL TONE\nREADY — LOAD REELS"
-		end
-		publish()
-	end
+	member.Battery = math.min(1, member.Battery + P.BatteryPickup)
+	player:SetAttribute("Battery", member.Battery)
+	toast(player, "BATTERY +50%", "good")
 end
 
 ----------------------------------------------------------------------------
@@ -526,71 +461,83 @@ end
 ----------------------------------------------------------------------------
 local function startShift()
 	shiftId += 1
-	fuses, tapes, progress, drift = 0, 0, 0, false
-	escapeEnds = 0
+	photos, sent, lastPhotoAt, returnEnds = 0, 0, 0, 0
 	startedAt = os.clock()
-	wakeAt = os.clock() + S.GracePeriod + 90 -- it also wakes when power returns
+	wakeAt = os.clock() + S.GracePeriod + S.BriefingSeconds
 	Facility.reset(facility)
 	Fawn.reset()
 	Fawn.setTuning(difficulty.Speed, difficulty.Hearing)
-	local noteIds = {}
+	local fileIds = {}
 	for _, note in Lore.Notes do
-		table.insert(noteIds, note.Id)
+		table.insert(fileIds, note.Id)
 	end
-	for i = #noteIds, 2, -1 do
-		local j = rng:NextInteger(1, i)
-		noteIds[i], noteIds[j] = noteIds[j], noteIds[i]
-	end
-	for _, item in Facility.spawnItems(facility, rng, noteIds) do
+	for _, item in Facility.stock(facility, rng, fileIds) do
 		item.Prompt.Triggered:Connect(function(player)
-			onItem(item, player)
+			takeBattery(item, player)
 		end)
 	end
-	facility.ConsolePrompt.ActionText = "Load reels"
-	facility.ConsolePrompt.HoldDuration = 2
-	setPhase("Blackout")
+	setPhase("Case")
+	refreshStations()
 end
 
 local function endShift()
 	setPhase("Ended")
 	endedAt = os.clock()
-	Fawn.setLure(nil)
 	Fawn.reset()
-	local desk = facility.ConsolePrompt.Parent :: Instance
-	local tone = desk:FindFirstChild("BroadcastTone") :: Sound?
-	if tone then
-		tone:Stop()
-	end
 end
 
 local function descend(riders: { Player })
-	if phase == "Idle" then
-		startShift()
-	end
 	lobby.ElevatorSound:Play()
 	for i, player in riders do
-		Remotes.ToClient:FireClient(player, "Elevator", S.ElevatorRideTime)
+		-- new investigators get the training tape on the way up
+		local profile = Data.get(player)
+		local briefing = profile ~= nil and profile.Shifts < 2
+		Remotes.ToClient:FireClient(player, "Elevator", if briefing then S.BriefingSeconds else S.ElevatorRideTime, briefing)
 		task.delay(1.3, function()
 			local member = Crew.get(player)
-			if not member or not player.Parent or (phase ~= "Blackout" and phase ~= "Tapes" and phase ~= "Broadcast") then
+			if not member or not player.Parent or phase ~= "Case" then
 				return
 			end
-			-- going back down after being taken: allowed, but on borrowed time
+			-- going back up after being admitted: allowed, but on your last heart
 			local returning = member.ShiftId == shiftId and member.Eliminated
-			local extra = difficulty.FreeStruggles - S.FreeStruggles + (if Store.owns(player, "SecondWind") then 1 else 0)
-			Crew.enterShift(member, shiftId, extra)
-			if returning then
-				member.StrugglesLeft = 0
-				Crew.sync(member)
-				toast(player, "YOU WENT BACK DOWN. NO FREE BREAK-OUT THIS TIME.", "bad")
-			end
+			local breakFrees = difficulty.BreakFrees + (if Store.owns(player, "SecondWind") then 1 else 0)
+			Crew.enterShift(member, shiftId, if returning then 1 else difficulty.Hearts, if returning then 0 else breakFrees)
 			Data.bump(player, "Shifts", 1)
 			local spawns = facility.ElevatorSpawns
-			local spot = spawns[(i - 1) % #spawns + 1]
-			Crew.teleport(player, CFrame.new(spot)) -- default facing (-Z) looks at the bay door
-			task.delay(S.ElevatorRideTime, toast, player, Lore.Tips[rng:NextInteger(1, #Lore.Tips)], "info")
+			Crew.teleport(player, CFrame.new(spawns[(i - 1) % #spawns + 1])) -- default facing (-Z) looks out of the car
+			if returning then
+				toast(player, "YOU WENT BACK UP. ONE HEART. NO BREAK-FREE.", "bad")
+			end
 		end)
 	end
+end
+
+-- Sends a crew up. Starts a new case on the chosen difficulty if none is running,
+-- otherwise the crew joins the case already in progress.
+function Shift.begin(players: { Player }, chosenDifficulty: string?): boolean
+	if phase == "Return" or phase == "Ended" then
+		for _, player in players do
+			toast(player, "THE CASE UPSTAIRS IS WRAPPING UP. TRY AGAIN IN A MOMENT.", "info")
+		end
+		return false
+	end
+	if phase == "Idle" then
+		difficultyKey = if chosenDifficulty and Config.Difficulties[chosenDifficulty] then chosenDifficulty else "Normal"
+		difficulty = Config.Difficulties[difficultyKey]
+		startShift()
+	end
+	descend(players)
+	return true
+end
+
+-- May this player use the lobby circles right now?
+function Shift.inLobby(player: Player): boolean
+	local member = Crew.get(player)
+	return member ~= nil and not member.InShift
+end
+
+function Shift.onEnded(callback: () -> ())
+	onEnded = callback
 end
 
 local function step(dt: number)
@@ -613,13 +560,25 @@ local function step(dt: number)
 	end
 	if Fawn.state() == "Dormant" and os.clock() >= wakeAt then
 		Fawn.wake()
+		bannerShift("Watching", "bad")
 	end
 	Fawn.step(dt)
-	stepCages(dt)
-	if phase == "Broadcast" then
-		stepBroadcast(dt)
-	elseif phase == "Escape" then
-		stepEscape()
+	stepGrabs()
+	if phase == "Return" then
+		for _, member in Crew.active() do
+			local pos = Crew.position(member.Player)
+			if pos and not member.Locker then
+				local cx, cy = Facility.cellOf(facility, pos)
+				if Grid.charAt(facility.Map, cx, cy) == "E" then
+					escape(member)
+				end
+			end
+		end
+		if now() > returnEnds then
+			for _, member in Crew.inPlay() do
+				eliminate(member, "Lockdown")
+			end
+		end
 	end
 	if #Crew.inPlay() == 0 and os.clock() - startedAt > 4 then
 		endShift()
@@ -629,28 +588,26 @@ end
 ----------------------------------------------------------------------------
 -- Purchases with gameplay effects
 ----------------------------------------------------------------------------
-local function cagedCount(): number
-	local count = 0
-	for _, member in Crew.Members do
-		if member.Cage and member.InShift then
-			count += 1
+local function crewBelowMax(): boolean
+	for _, member in Crew.inPlay() do
+		if member.Hearts < maxHearts() then
+			return true
 		end
 	end
-	return count
+	return false
 end
 
-local function sightTargets(): { Instance }
+local function scanTargets(): { Instance }
 	local targets: { Instance } = {}
-	for _, item in facility.Items do
-		if item.Root.Parent and (item.Kind == "Fuse" or item.Kind == "Reel") then
-			table.insert(targets, item.Root)
+	for _, station in facility.Stations do
+		if station.Left > 0 then
+			table.insert(targets, station.Root)
 		end
 	end
-	if phase == "Blackout" and fuses >= S.FusesNeeded and facility.BreakerPrompt.Parent then
-		table.insert(targets, facility.BreakerPrompt.Parent)
-	end
-	if phase == "Tapes" and tapes >= S.TapesNeeded and facility.ConsolePrompt.Parent then
-		table.insert(targets, facility.ConsolePrompt.Parent)
+	for _, cabinet in facility.Cabinets do
+		if cabinet.File then
+			table.insert(targets, cabinet.Root)
+		end
 	end
 	return targets
 end
@@ -658,35 +615,39 @@ end
 local function registerGrants()
 	Store.registerGrant("Revive", function(player)
 		local member = Crew.get(player)
-		if member and member.Cage and member.InShift then
-			free(member, "THE KEY TURNS.")
+		if member and member.InShift and member.Hearts < maxHearts() then
+			member.Hearts += 1
+			Crew.sync(member)
+			toast(player, "ADRENALINE. ONE HEART BACK.", "good")
 			return true
 		end
-		return false
+		return false -- not usable right now: the Store banks it for later
 	end)
 	Store.registerGrant("ReviveAll", function(player)
-		if cagedCount() == 0 then
+		if not crewBelowMax() then
 			return false
 		end
-		for _, member in Crew.Members do
-			if member.Cage and member.InShift then
-				free(member, `{player.DisplayName} MADE AN OFFERING. EVERY CAGE OPENS.`)
+		for _, member in Crew.inPlay() do
+			if member.Hearts < maxHearts() then
+				member.Hearts += 1
+				Crew.sync(member)
 			end
 		end
+		toastShift(`{string.upper(player.DisplayName)} CALLED A CRASH CART. ONE HEART BACK FOR EVERYONE.`, "good")
 		return true
 	end)
 	Store.registerGrant("DeadAir", function(player)
-		if phase == "Idle" or phase == "Ended" then
+		if phase ~= "Case" and phase ~= "Return" then
 			return false
 		end
 		Fawn.setDeadAir(os.clock() + Config.Fawn.DeadAirSeconds)
 		workspace:SetAttribute("HS_DeadAirEnds", now() + Config.Fawn.DeadAirSeconds)
-		toastShift(`{player.DisplayName} MADE AN OFFERING. DEAD AIR — SHE CANNOT HEAR YOU FOR {Config.Fawn.DeadAirSeconds}s.`, "good")
+		toastShift(`{string.upper(player.DisplayName)} SEDATED IT. IT CANNOT HEAR YOU FOR {Config.Fawn.DeadAirSeconds}s.`, "good")
 		return true
 	end)
 	Store.registerGrant("Sight", function(player)
-		local targets = sightTargets()
-		if #targets == 0 then
+		local targets = scanTargets()
+		if #targets == 0 or (phase ~= "Case" and phase ~= "Return") then
 			return false
 		end
 		for _, target in targets do
@@ -698,7 +659,7 @@ local function registerGrants()
 			glow.Parent = target
 			Debris:AddItem(glow, 45)
 		end
-		toastShift(`{player.DisplayName} MADE AN OFFERING. WHAT YOU SEEK SHOWS ITSELF.`, "good")
+		toastShift(`{string.upper(player.DisplayName)} RAN THE SCANNER. STATIONS AND FILES ARE MARKED.`, "good")
 		return true
 	end)
 	Store.registerGrant("ScareAll", function(player)
@@ -708,7 +669,7 @@ local function registerGrants()
 		local pos = Crew.position(player)
 		if member and pos and Crew.isActive(member) then
 			Fawn.howl()
-			Fawn.hear(pos, 4, true) -- it answers
+			Fawn.hear(pos, 4, true) -- it answers the page
 		end
 		return true
 	end)
@@ -718,22 +679,22 @@ end
 local function offer(player: Player, kind: string)
 	if kind == "ScareAll" then
 		if os.clock() < scareReadyAt then
-			toast(player, "THE SIREN IS STILL RINGING.", "store")
+			toast(player, "THE PA IS STILL RINGING.", "store")
 			return
 		end
 	elseif kind == "ReviveAll" then
-		if cagedCount() == 0 then
-			toast(player, "NO ONE IS CAGED. THE EFFIGY WANTS NOTHING.", "store")
+		if not crewBelowMax() then
+			toast(player, "NOBODY NEEDS IT. THE CART STAYS WHERE IT IS.", "store")
 			return
 		end
 	elseif kind == "Sight" then
-		if #sightTargets() == 0 then
+		if #scanTargets() == 0 then
 			toast(player, "THERE IS NOTHING LEFT TO FIND.", "store")
 			return
 		end
 	elseif kind == "DeadAir" then
 		if Fawn.state() == "Dormant" then
-			toast(player, "NOTHING IS LISTENING. YET.", "store")
+			toast(player, "IT IS NOT LISTENING. YET.", "store")
 			return
 		end
 	end
@@ -745,13 +706,11 @@ local function refreshPriceLabels()
 		local price = Store.priceText(scope, key)
 		return if price == "" then text else text .. "  " .. price
 	end
-	for _, effigy in facility.Effigies do
-		effigy.Prompt.ActionText = withPrice("Leave an offering", "Product", effigy.Kind)
+	for _, dispenser in facility.Dispensers do
+		dispenser.Prompt.ActionText = withPrice("Dispense", "Product", dispenser.Kind)
 	end
-	for _, cage in facility.Cages do
-		cage.KeyPrompt.ActionText = withPrice("Take", "Product", "Revive")
-	end
-	lobby.SirenPrompt.ActionText = withPrice("Crank the siren", "Product", "ScareAll")
+	lobby.SirenPrompt.ActionText = withPrice("Page the building", "Product", "ScareAll")
+	lobby.ShotPrompt.ActionText = withPrice("Dispense (kept for your next case)", "Product", "Revive")
 	for _, item in lobby.ShopItems do
 		local pass = Config.Passes[item.Key]
 		item.Prompt.ActionText = withPrice("Buy", "Pass", item.Key)
@@ -767,7 +726,7 @@ local function wireWorld()
 	for _, door in facility.Doors do
 		door.Prompt.Triggered:Connect(function(player)
 			local member = acting(player)
-			if not member or door.Locked then
+			if not member then
 				return
 			end
 			local slam = member.Sprinting
@@ -780,66 +739,28 @@ local function wireWorld()
 			enterLocker(player, locker)
 		end)
 	end
-	for _, cage in facility.Cages do
-		cage.RescuePrompt.Triggered:Connect(function(player)
-			local rescuer = acting(player)
-			if not rescuer then
-				return
-			end
-			local freed = 0
-			for _, occupant in table.clone(cage.Occupants) do
-				local member = Crew.get(occupant)
-				if member then
-					free(member, `{player.DisplayName} OPENED YOUR CAGE.`)
-					freed += 1
-				end
-			end
-			if freed > 0 then
-				rescuer.Rescues += freed
-				Data.bump(player, "Rescues", freed)
-			end
-		end)
-		cage.KeyPrompt.Triggered:Connect(function(player)
-			local member = Crew.get(player)
-			if not member or not member.Cage then
-				return
-			end
-			local profile = Data.get(player)
-			if profile and profile.Keys > 0 then
-				Data.addKeys(player, -1)
-				free(member, `THE KEY TURNS. ({profile.Keys} LEFT)`)
-			else
-				offer(player, "Revive")
-			end
+	for _, station in facility.Stations do
+		station.Prompt.Triggered:Connect(function(player)
+			sendEvidence(player, station)
 		end)
 	end
-	for _, effigy in facility.Effigies do
-		effigy.Prompt.Triggered:Connect(function(player)
+	for _, cabinet in facility.Cabinets do
+		cabinet.Prompt.Triggered:Connect(function(player)
+			searchCabinet(player, cabinet)
+		end)
+	end
+	for _, dispenser in facility.Dispensers do
+		dispenser.Prompt.Triggered:Connect(function(player)
 			if acting(player) then
-				offer(player, effigy.Kind)
+				offer(player, dispenser.Kind)
 			end
 		end)
 	end
-	facility.BreakerPrompt.Triggered:Connect(function(player)
-		if acting(player) and fuses >= S.FusesNeeded then
-			powerOn()
-		end
-	end)
-	facility.ConsolePrompt.Triggered:Connect(function(player)
-		if not acting(player) then
-			return
-		end
-		if phase == "Tapes" and tapes >= S.TapesNeeded then
-			startBroadcast()
-		elseif phase == "Broadcast" and drift then
-			drift = false
-			facility.ConsolePrompt.Enabled = false
-			nextDriftAt = os.clock() + rng:NextNumber(S.RetuneEvery[1], S.RetuneEvery[2])
-			publish()
-		end
-	end)
 	lobby.SirenPrompt.Triggered:Connect(function(player)
 		offer(player, "ScareAll")
+	end)
+	lobby.ShotPrompt.Triggered:Connect(function(player)
+		Store.prompt(player, "Revive") -- bought in the lobby it is banked for the next case
 	end)
 	for _, item in lobby.ShopItems do
 		item.Prompt.Triggered:Connect(function(player)
@@ -876,7 +797,24 @@ local function onMessage(player: Player, name: any, a: any)
 	elseif name == "ExitLocker" then
 		leaveLocker(member)
 	elseif name == "Struggle" then
-		member.Struggling = on and member.Cage ~= nil
+		-- one message per tap while it has you
+		if member.Grabbed and member.BreakFrees > 0 then
+			member.GrabProgress = math.min(1, member.GrabProgress + 1 / S.BreakFreeTaps)
+			player:SetAttribute("GrabProgress", member.GrabProgress)
+		end
+	elseif name == "Photo" then
+		if acting(player) and typeof(a) == "Vector3" then
+			takePhoto(member, a)
+		end
+	elseif name == "Answer" then
+		if os.clock() < member.AskedUntil and Crew.isActive(member) then
+			member.AskedUntil = 0
+			local pos = Crew.position(player)
+			if pos then
+				Fawn.hear(pos, 4, true)
+			end
+			banner(player, "Answered", "bad")
+		end
 	elseif name == "IntroSeen" then
 		local profile = Data.get(player)
 		if profile then
@@ -889,23 +827,34 @@ local function onMessage(player: Player, name: any, a: any)
 		if not pos or not Crew.isActive(member) or not member.LightOn then
 			return
 		end
-		if os.clock() < member.DazzleReadyAt or member.Battery < Config.Player.DazzleBatteryCost then
+		if os.clock() < member.DazzleReadyAt or member.Battery < P.DazzleBatteryCost then
 			return
 		end
-		local near = (pos - fawnPos).Magnitude <= Config.Player.DazzleRange + 6
+		local near = (pos - fawnPos).Magnitude <= P.DazzleRange + 6
 		if near and Grid.lineOfSight(facility.Map, pos.X, pos.Z, fawnPos.X, fawnPos.Z) and Fawn.stagger(member) then
-			member.DazzleReadyAt = os.clock() + Config.Player.DazzleCooldown
-			member.Battery = math.max(0, member.Battery - Config.Player.DazzleBatteryCost)
+			member.DazzleReadyAt = os.clock() + P.DazzleCooldown
+			member.Battery = math.max(0, member.Battery - P.DazzleBatteryCost)
 			player:SetAttribute("Battery", member.Battery)
-			player:SetAttribute("DazzleReadyAt", now() + Config.Player.DazzleCooldown)
-			toast(player, "HER OPTICS WHITE OUT. NOW SHE IS ANGRY.", "bad")
+			player:SetAttribute("DazzleReadyAt", now() + P.DazzleCooldown)
+			toast(player, "ITS LENS WHITES OUT. NOW IT IS ANGRY.", "bad")
+		end
+	end
+end
+
+-- HUSH asked this player a question. They have a few seconds in which answering is a mistake.
+local function asked(member: Crew.Member, line: string)
+	member.AskedUntil = os.clock() + 5
+	Remotes.ToClient:FireClient(member.Player, "Asked", line, 5)
+	for _, other in Crew.Members do
+		if other.InShift and other ~= member then
+			Remotes.ToClient:FireClient(other.Player, "Subtitle", line, true)
 		end
 	end
 end
 
 local function refreshBoard()
 	local top = Data.topEscapes(8)
-	local lines = { "CREWS WHO CAME BACK UP", "" }
+	local lines = { "INVESTIGATORS WHO CAME BACK", "" }
 	if #top == 0 then
 		table.insert(lines, "— no records yet —")
 	end
@@ -915,39 +864,11 @@ local function refreshBoard()
 	lobby.BoardLabel.Text = table.concat(lines, "\n")
 end
 
--- Sends a crew down. Starts a new shift on the chosen difficulty if none is running,
--- otherwise the crew drops into the shift already in progress.
-function Shift.begin(players: { Player }, chosenDifficulty: string?): boolean
-	if phase == "Escape" or phase == "Ended" then
-		for _, player in players do
-			toast(player, "A SHIFT IS ENDING BELOW. TRY AGAIN IN A MOMENT.", "info")
-		end
-		return false
-	end
-	if phase == "Idle" then
-		difficultyKey = if chosenDifficulty and Config.Difficulties[chosenDifficulty] then chosenDifficulty else "Normal"
-		difficulty = Config.Difficulties[difficultyKey]
-		startShift()
-	end
-	descend(players)
-	return true
-end
-
--- May this player use the lobby circles right now?
-function Shift.inLobby(player: Player): boolean
-	local member = Crew.get(player)
-	return member ~= nil and not member.InShift
-end
-
-function Shift.onEnded(callback: () -> ())
-	onEnded = callback
-end
-
 function Shift.init(theFacility: Facility.Facility, theLobby: Lobby.Lobby)
 	facility = theFacility
 	lobby = theLobby
 
-	Fawn.init(facility, { OnCatch = catch, OnLockerFound = lockerFound })
+	Fawn.init(facility, { OnCatch = catch, OnLockerFound = lockerFound, OnAsk = asked })
 	registerGrants()
 	wireWorld()
 	refreshPriceLabels()
@@ -973,9 +894,9 @@ function Shift.init(theFacility: Facility.Facility, theLobby: Lobby.Lobby)
 				member.Locker.Occupant = nil
 				member.Locker.Prompt.Enabled = true
 			end
-			leaveCage(member)
-			-- anything still holding this member (e.g. FAWN's target) must see them as gone
+			-- anything still holding this member (e.g. HUSH's target) must see them as gone
 			member.Locker = nil
+			member.Grabbed = false
 			member.InShift = false
 		end
 		budgets[player] = nil

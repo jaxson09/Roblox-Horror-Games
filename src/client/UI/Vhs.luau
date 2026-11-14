@@ -22,6 +22,7 @@ local blocks: { Frame } = {}
 local noiseImage: ImageLabel? = nil
 local staticLayer: Frame
 local fadeFrame: Frame
+local flashFrame: Frame
 local redFrame: Frame
 local trackBar: Frame
 local baseStatic = 0
@@ -96,6 +97,7 @@ function Vhs.init()
 
 	local fadeGui = Theme.screen("HS_Fade", 80)
 	fadeFrame = Theme.frame(fadeGui, "Fade", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), black, 1)
+	flashFrame = Theme.frame(fadeGui, "Flash", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(1, 1, 1), 1)
 
 	local acc = 0
 	local nextRoll = os.clock() + 6
@@ -149,6 +151,12 @@ end
 
 function Vhs.fade(toBlack: boolean, seconds: number)
 	TweenService:Create(fadeFrame, TweenInfo.new(seconds, Enum.EasingStyle.Sine), { BackgroundTransparency = if toBlack then 0 else 1 }):Play()
+end
+
+-- Camera flash: the screen whites out and comes back.
+function Vhs.flash(seconds: number)
+	flashFrame.BackgroundTransparency = if Vhs.ReducedFlashing then 0.7 else 0.05
+	TweenService:Create(flashFrame, TweenInfo.new(seconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
 end
 
 function Vhs.cut(toBlack: boolean)

@@ -270,6 +270,28 @@ def breath_gasp():
     dur = 1.3; y = formant(noise(dur), [(900, 300, 1), (2400, 600, 0.7)], 0.02) * glide([(0, 0), (0.25, 1), (0.45, 0.2), (0.6, 0.7), (1, 0)], dur)
     return norm(y, 0.7)
 
+def camera_shutter():
+    y = np.zeros(int(1.6 * SR)); mixin(y, filt(noise(0.02), lo=2500) * decay(0.02, 0.004), 0); mixin(y, clank(0.12, [1700, 2900, 4100], 0.02) * 0.8, 0.03)
+    whine = np.sin(phase(glide([(0, 2200), (1, 9000)], 1.3))) * glide([(0, 0), (0.1, 0.12), (0.9, 0.04), (1, 0)], 1.3)  # the flash recharging
+    mixin(y, whine, 0.2); mixin(y, filt(noise(0.08), lo=800, hi=6000, order=2) * decay(0.08, 0.02) * 1.2, 0.01)
+    return norm(y, 0.8)
+def tube_send():
+    dur = 3.0; y = np.zeros(int(dur * SR))
+    mixin(y, thump(120, 0.3, 0.05) * 1.5 + clank(0.3, [600, 990, 1640], 0.05), 0)  # hatch
+    whoosh = filt(noise(1.6), lo=300, hi=3500, order=2) * glide([(0, 0), (0.15, 1), (1, 0)], 1.6) * (1 + 0.5 * np.sin(phase(glide([(0, 30), (1, 90)], 1.6))))
+    mixin(y, whoosh, 0.25, 0.9); mixin(y, thump(70, 0.6, 0.12) * 2 + clank(0.6, [210, 350, 580, 940], 0.2), 1.5)  # the canister hits a bend
+    for at in (1.9, 2.15, 2.35): mixin(y, clank(0.25, [260, 440, 720], 0.08), at, 0.35)
+    return norm(reverb(y, 2.6, 0.4), 0.95)
+def power_down():
+    dur = 3.6; tt = t(dur); f = glide([(0, 120), (0.7, 34), (1, 18)], dur)
+    y = saw(f, 30) * glide([(0, 0.9), (0.6, 0.6), (1, 0)], dur) + filt(saw(np.full(len(tt), 120.0), 40), lo=800, order=2) * (tt < 0.5) * 0.3
+    mixin(y, thump(90, 0.4, 0.08) * 2.5 + clank(0.4, [300, 520, 880], 0.1), 0.02)
+    return norm(reverb(filt(y, hi=2600, order=2), 3.0, 0.4), 0.95)
+def grab_sting():
+    dur = 3.2; tt = t(dur); y = sum(saw(f * (1 + 0.006 * np.sin(2 * np.pi * 5 * tt)), 20) for f in [73.4, 77.8, 110, 116.5, 220, 233]) * glide([(0, 0), (0.03, 1), (0.5, 0.7), (1, 0)], dur)
+    y = filt(y, hi=2400, order=2) + filt(noise(dur), lo=2000, hi=7000, order=2) * decay(dur, 0.2) + thump(46, dur, 0.5) * 1.5
+    return norm(reverb(drive(norm(y), 3), 2.5, 0.35), 0.95)
+
 shriek_cache = shriek()
 SOUNDS = {
     "fawn_howl_1": lambda: howl(11), "fawn_howl_2": lambda: howl(23, 5.6, 150, 420, 1320), "fawn_howl_3": lambda: howl(37, 7.4, 190, 520, 1750),
@@ -278,6 +300,7 @@ SOUNDS = {
     "forest_night": forest_night, "lobby_theme": lobby_theme, "chase_theme": chase_theme, "broadcast_tone": broadcast_tone, "alarm_loop": alarm_loop,
     "effigy_whisper": effigy_whisper, "door_open": door_open, "door_close": door_close, "door_slam": door_slam, "blast_door": blast_door, "locker": locker,
     "pickup": pickup, "fuse_insert": fuse_insert, "power_up": power_up, "elevator": elevator, "cage_rattle": cage_rattle, "cage_open": cage_open,
+    "camera_shutter": camera_shutter, "tube_send": tube_send, "power_down": power_down, "grab": grab_sting,
     "light_flicker": light_flicker, "flashlight_click": flashlight_click, "ui_blip": ui_blip, "ui_type": ui_type, "tape_start": tape_start, "breath_gasp": breath_gasp,
 }
 

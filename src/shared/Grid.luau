@@ -27,7 +27,9 @@ local DOOR_CHARS: { [string]: boolean } = { D = true, L = true, B = true }
 -- These never count as floor even though something stands in them.
 local SOLID_CHARS: { [string]: boolean } = { ["#"] = true }
 -- Wall-mounted markers: solid for navigation when they replace a wall cell.
-local MOUNT_CHARS: { [string]: boolean } = { H = true, ["1"] = true, ["2"] = true, ["3"] = true, ["4"] = true }
+local MOUNT_CHARS: { [string]: boolean } = { H = true, P = true, ["1"] = true, ["2"] = true, ["3"] = true, ["4"] = true }
+-- Furniture markers that stand on a room floor and block movement.
+local BLOCK_CHARS: { [string]: boolean } = { R = true, F = true }
 
 local DIRS = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } } -- N E S W
 
@@ -202,7 +204,7 @@ function Grid.isWalkable(map: Map, cx: number, cy: number): boolean
 	end
 	local ch = map.Cells[idx]
 	-- Furniture-like markers on room floors block movement.
-	return not (MOUNT_CHARS[ch] or ch == "K" or ch == "X" or ch == "C")
+	return not (MOUNT_CHARS[ch] or BLOCK_CHARS[ch])
 end
 
 -- Can FAWN route through this cell right now?
@@ -318,7 +320,7 @@ function Grid.lineOfSight(map: Map, x1: number, z1: number, x2: number, z2: numb
 	return true
 end
 
-function Grid.regionAt(regions: { { Name: string, X1: number, Y1: number, X2: number, Y2: number } }, cx: number, cy: number): string?
+function Grid.regionAt(regions: { { Name: string, X1: number, Y1: number, X2: number, Y2: number, Kind: string } }, cx: number, cy: number): string?
 	for _, r in regions do
 		if cx >= r.X1 and cx <= r.X2 and cy >= r.Y1 and cy <= r.Y2 then
 			return r.Name

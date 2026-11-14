@@ -28,6 +28,7 @@ local lastSprintAt = 0
 local bobPhase = 0
 local fovKick = 0
 Movement.Shake = Vector3.zero -- extra camera offset written by scares
+Movement.Zoom = 0 -- field-of-view offset written by the camcorder
 
 local function maxStamina(): number
 	return P.StaminaMax * (if player:GetAttribute("Pass_Stamina") then P.StaminaPassMultiplier else 1)
@@ -77,7 +78,7 @@ function Movement.init()
 		local inShift = player:GetAttribute("InShift") == true
 		player.CameraMode = if inShift then Enum.CameraMode.LockFirstPerson else Enum.CameraMode.Classic
 
-		local busy = player:GetAttribute("Hidden") == true or player:GetAttribute("Caged") == true
+		local busy = player:GetAttribute("Hidden") == true or player:GetAttribute("Grabbed") == true
 		local moving = humanoid.MoveDirection.Magnitude > 0.1
 		local cap = maxStamina()
 		if not inShift then
@@ -119,7 +120,7 @@ function Movement.init()
 		local targetKick = if sprinting then 9 elseif exhausted then -3 else 0
 		fovKick += (targetKick - fovKick) * math.min(1, dt * 5)
 		if camera.CameraType == Enum.CameraType.Custom then
-			camera.FieldOfView = 70 + fovKick
+			camera.FieldOfView = 70 + fovKick + Movement.Zoom
 		end
 	end)
 end

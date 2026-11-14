@@ -17,6 +17,7 @@ Theme.Fonts = {
 	Scrawl = Font.new(Config.Fonts.Scrawl),
 	Horror = Font.new(Config.Fonts.Horror),
 	Sign = Font.new(Config.Fonts.Sign),
+	Serif = Font.fromEnum(Enum.Font.Bodoni), -- event lines, and what it says
 }
 
 function Theme.screen(name: string, order: number): ScreenGui

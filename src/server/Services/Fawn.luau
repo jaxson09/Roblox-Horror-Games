@@ -30,6 +30,7 @@ local Fawn = {}
 export type Hooks = {
 	OnCatch: (Crew.Member) -> (),
 	OnLockerFound: (Crew.Member) -> (),
+	OnAsk: (Crew.Member, string) -> (),
 }
 
 type Decoy = { Model: Model, Position: Vector3, ExpiresAt: number }
@@ -190,7 +191,7 @@ local function moveToward(point: Vector3, direct: boolean): boolean
 	-- slam open any door in the next couple of cells
 	for i = 1, math.min(2, #path) do
 		local door = facility.Doors[path[i]]
-		if door and not door.Open and not door.Locked and flat(pos, door.Position) < 10 then
+		if door and not door.Open and flat(pos, door.Position) < 10 then
 			if doorOpenAt == 0 then
 				doorOpenAt = now + 0.55
 			elseif now >= doorOpenAt then
@@ -267,7 +268,35 @@ local function investigate(position: Vector3)
 	stateUntil = os.clock() + 22
 end
 
+local lastAskAt = 0
+
+-- "Are you in pain?" It asks whoever is nearest. Answering tells it where they are.
+local function ask(position: Vector3)
+	local now = os.clock()
+	if now - lastAskAt < 14 then
+		return
+	end
+	local nearest: Crew.Member? = nil
+	local nearestDist = 60
+	for _, member in Crew.active() do
+		local pos = Crew.position(member.Player)
+		if pos and flat(pos, position) < nearestDist then
+			nearest, nearestDist = member, flat(pos, position)
+		end
+	end
+	if nearest then
+		lastAskAt = now
+		local line = string.format(Lore.Questions[rng:NextInteger(1, #Lore.Questions)], string.upper(nearest.Player.DisplayName))
+		local sound = rig.Sounds["Mimic" .. rng:NextInteger(1, 2)]
+		if sound then
+			sound:Play()
+		end
+		hooks.OnAsk(nearest, line)
+	end
+end
+
 local function startSearch(position: Vector3)
+	ask(position)
 	setState("Search")
 	searchCenter = position
 	goal = position
@@ -554,6 +583,11 @@ function Fawn.step(dt: number)
 			end
 		elseif canHear(member, pos) then
 			heardPos = pos
+			-- tell that player it heard them (drives the "IT HEARS YOU" line), at most every few seconds
+			local last = member.Player:GetAttribute("HeardAt")
+			if type(last) ~= "number" or workspace:GetServerTimeNow() - last > 6 then
+				member.Player:SetAttribute("HeardAt", workspace:GetServerTimeNow())
+			end
 		end
 	end
 	if enraged and not seen and nearest then
@@ -733,6 +767,15 @@ function Fawn.reset()
 	rig.Model:PivotTo(CFrame.new(facility.NestPosition + Vector3.new(0, FawnRig.RootHeight, 0)))
 	rig.Model:SetAttribute("State", "Dormant")
 	workspace:SetAttribute("HS_FawnState", "Dormant")
+end
+
+-- Makes it stand still for a moment (it reels when someone wrenches free).
+function Fawn.pause(seconds: number)
+	pauseUntil = math.max(pauseUntil, os.clock() + seconds)
+	rig.Model:SetAttribute("State", "Stagger")
+	task.delay(seconds, function()
+		rig.Model:SetAttribute("State", state)
+	end)
 end
 
 -- Difficulty: how fast it moves and how far it hears.

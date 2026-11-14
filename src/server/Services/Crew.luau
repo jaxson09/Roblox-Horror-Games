@@ -20,11 +20,13 @@ export type Member = {
 	ShiftId: number, -- last shift this player entered
 	Eliminated: boolean,
 	Escaped: boolean,
+	Hearts: number,
+	BreakFrees: number, -- times they can still wrench free of a grab
+	Grabbed: boolean, -- in HUSH's hands right now
+	GrabEnds: number,
+	GrabProgress: number,
 	Locker: Facility.Locker?,
-	Exposed: boolean, -- FAWN watched them climb into the locker
-	Cage: Facility.Cage?,
-	CagedAt: number,
-	CageEnds: number,
+	Exposed: boolean, -- HUSH watched them climb into the locker
 	Noise: number,
 	Battery: number,
 	LightOn: boolean,
@@ -33,14 +35,14 @@ export type Member = {
 	Sprinting: boolean,
 	HoldingBreath: boolean,
 	Breath: number,
-	Loud: number, -- seconds of audible breathing next to FAWN
-	StrugglesLeft: number,
-	Struggling: boolean,
-	StruggleProgress: number,
+	Loud: number, -- seconds of audible breathing next to HUSH
 	DazzleReadyAt: number,
-	Reels: number,
-	Fuses: number,
-	Rescues: number,
+	LastPhotoAt: number,
+	AskedUntil: number, -- HUSH asked them a question; answering before this gives them away
+	Photos: number,
+	Sent: number,
+	Files: number,
+	Caught: number,
 	JoinedAt: number,
 }
 
@@ -51,10 +53,10 @@ local function sync(member: Member)
 	local p = member.Player
 	p:SetAttribute("InShift", member.InShift)
 	p:SetAttribute("Hidden", member.Locker ~= nil)
-	p:SetAttribute("Caged", member.Cage ~= nil)
-	p:SetAttribute("CageEnds", member.CageEnds)
+	p:SetAttribute("Grabbed", member.Grabbed)
 	p:SetAttribute("Eliminated", member.Eliminated)
-	p:SetAttribute("StrugglesLeft", member.StrugglesLeft)
+	p:SetAttribute("Hearts", member.Hearts)
+	p:SetAttribute("BreakFrees", member.BreakFrees)
 	p:SetAttribute("LightOn", member.LightOn)
 end
 Crew.sync = sync
@@ -80,7 +82,7 @@ end
 
 -- In the sublevel and free to act (may be hiding in a locker).
 function Crew.isActive(member: Member): boolean
-	return member.InShift and member.Cage == nil and not member.Eliminated and not member.Escaped
+	return member.InShift and not member.Grabbed and not member.Eliminated and not member.Escaped
 end
 
 function Crew.active(): { Member }
@@ -119,16 +121,19 @@ function Crew.setAnchored(player: Player, anchored: boolean)
 	end
 end
 
--- Resets the per-shift fields when a player rides the elevator down.
-function Crew.enterShift(member: Member, shiftId: number, extraStruggles: number)
+-- Resets the per-shift fields when a player rides the elevator up to the ward.
+function Crew.enterShift(member: Member, shiftId: number, hearts: number, breakFrees: number)
 	member.InShift = true
 	member.ShiftId = shiftId
 	member.Eliminated = false
 	member.Escaped = false
+	member.Hearts = hearts
+	member.BreakFrees = breakFrees
+	member.Grabbed = false
+	member.GrabEnds = 0
+	member.GrabProgress = 0
 	member.Locker = nil
 	member.Exposed = false
-	member.Cage = nil
-	member.CageEnds = 0
 	member.Noise = 0
 	member.Battery = 1
 	member.LightOn = false
@@ -138,18 +143,18 @@ function Crew.enterShift(member: Member, shiftId: number, extraStruggles: number
 	member.HoldingBreath = false
 	member.Breath = Config.Player.BreathSeconds
 	member.Loud = 0
-	member.StrugglesLeft = Config.Shift.FreeStruggles + extraStruggles
-	member.Struggling = false
-	member.StruggleProgress = 0
 	member.DazzleReadyAt = 0
-	member.Reels = 0
-	member.Fuses = 0
-	member.Rescues = 0
+	member.LastPhotoAt = 0
+	member.AskedUntil = 0
+	member.Photos = 0
+	member.Sent = 0
+	member.Files = 0
+	member.Caught = 0
 	member.JoinedAt = os.clock()
 	member.Player:SetAttribute("Battery", 1)
 	member.Player:SetAttribute("Noise", 0)
 	member.Player:SetAttribute("Breath", 1)
-	member.Player:SetAttribute("StruggleProgress", 0)
+	member.Player:SetAttribute("GrabProgress", 0)
 	sync(member)
 end
 
@@ -178,7 +183,7 @@ function Crew.step(dt: number, hasBatteryPass: (Player) -> boolean)
 		local _, root = Crew.character(player)
 
 		local target = 0
-		if root and not member.Locker and not member.Cage then
+		if root and not member.Locker and not member.Grabbed then
 			local v = root.AssemblyLinearVelocity
 			local speed = Vector3.new(v.X, 0, v.Z).Magnitude
 			if speed > 15 then
@@ -257,11 +262,13 @@ function Crew.add(player: Player, isVeteran: (Player) -> boolean, onRespawn: (Me
 		ShiftId = -1,
 		Eliminated = false,
 		Escaped = false,
+		Hearts = 0,
+		BreakFrees = 0,
+		Grabbed = false,
+		GrabEnds = 0,
+		GrabProgress = 0,
 		Locker = nil,
 		Exposed = false,
-		Cage = nil,
-		CagedAt = 0,
-		CageEnds = 0,
 		Noise = 0,
 		Battery = 1,
 		LightOn = false,
@@ -271,13 +278,13 @@ function Crew.add(player: Player, isVeteran: (Player) -> boolean, onRespawn: (Me
 		HoldingBreath = false,
 		Breath = Config.Player.BreathSeconds,
 		Loud = 0,
-		StrugglesLeft = 0,
-		Struggling = false,
-		StruggleProgress = 0,
 		DazzleReadyAt = 0,
-		Reels = 0,
-		Fuses = 0,
-		Rescues = 0,
+		LastPhotoAt = 0,
+		AskedUntil = 0,
+		Photos = 0,
+		Sent = 0,
+		Files = 0,
+		Caught = 0,
 		JoinedAt = 0,
 	}
 	members[player] = member

@@ -5,20 +5,19 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
-local TweenService = game:GetService("TweenService")
 
-local Config = require(ReplicatedStorage.Shared.Config)
+local Lore = require(ReplicatedStorage.Shared.Lore)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Sfx = require(ReplicatedStorage.Shared.Sfx)
 local Hud = require(script.Parent.UI.Hud)
-local Theme = require(script.Parent.UI.Theme)
+local PartyUi = require(script.Parent.UI.PartyUi)
 local Vhs = require(script.Parent.UI.Vhs)
 local Atmosphere = require(script.Parent.Controllers.Atmosphere)
+local Camcorder = require(script.Parent.Controllers.Camcorder)
 local FawnAnimator = require(script.Parent.Controllers.FawnAnimator)
 local Flashlight = require(script.Parent.Controllers.Flashlight)
 local Movement = require(script.Parent.Controllers.Movement)
 local Prompts = require(script.Parent.Controllers.Prompts)
-local PartyUi = require(script.Parent.UI.PartyUi)
 
 local player = Players.LocalPlayer
 local rng = Random.new()
@@ -39,6 +38,7 @@ Hud.init()
 Atmosphere.init()
 Movement.init()
 Flashlight.init()
+Camcorder.init()
 FawnAnimator.init()
 Prompts.init()
 PartyUi.init()
@@ -46,10 +46,13 @@ PartyUi.init()
 local stings = Instance.new("Folder")
 stings.Name = "HS_Stings"
 stings.Parent = player:WaitForChild("PlayerGui")
-local jumpscareSound = Sfx.make(stings, "Jumpscare", { Volume = 1.4 })
+local jumpscareSound = Sfx.make(stings, "Jumpscare", { Volume = 1.3 })
+local grabSound = Sfx.make(stings, "Grab", { Volume = 1 })
 local howlSound = Sfx.make(stings, "FawnHowl1", { Volume = 1 })
 local stingSound = Sfx.make(stings, "Sting", { Volume = 0.9 })
 local elevatorSound = Sfx.make(stings, "Elevator", { Volume = 0.9 })
+local powerSound = Sfx.make(stings, "PowerDown", { Volume = 1 })
+local gaspSound = Sfx.make(stings, "Breath", { Volume = 0.8 })
 
 ----------------------------------------------------------------------------
 -- Camera shake (shared by every scare)
@@ -80,97 +83,156 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ----------------------------------------------------------------------------
--- Set pieces
+-- The grab: it lifts you to its face and says something. You get a few seconds.
 ----------------------------------------------------------------------------
-local function jumpscare(model: Instance?)
+local grabConnection: RBXScriptConnection? = nil
+
+local function releaseCamera()
+	if grabConnection then
+		grabConnection:Disconnect()
+		grabConnection = nil
+	end
 	local camera = workspace.CurrentCamera
-	local head = if model then model:FindFirstChild("Skull") :: BasePart? else nil
-	jumpscareSound:Play()
-	Vhs.burst(0.9, 0.3)
-	shake(1.4, 1.6)
-	local connection: RBXScriptConnection? = nil
-	if camera and head then
-		camera.CameraType = Enum.CameraType.Scriptable
-		local start = os.clock()
-		connection = RunService.RenderStepped:Connect(function()
-			local t = os.clock() - start
-			local face = head.CFrame
-			-- start an arm's length from its face and get dragged in
-			local eye = (face * CFrame.new(0.2, -0.3, -5.2 + math.min(t / 0.35, 1) * 2.6)).Position
-			local jitter = if Vhs.ReducedFlashing then 0.01 else 0.05
-			camera.CFrame = CFrame.lookAt(eye, face.Position) * CFrame.Angles(rng:NextNumber(-jitter, jitter), rng:NextNumber(-jitter, jitter), rng:NextNumber(-0.12, 0.12))
-			camera.FieldOfView = 70 - 22 * math.min(t / 0.3, 1)
-		end)
-	end
-	task.wait(1.15)
-	local overlay = Theme.screen("HS_Taken", 86)
-	local word = Theme.label(overlay, "Word", UDim2.new(1, 0, 0, 120), UDim2.new(0, 0, 0.4, 0), Theme.Fonts.Horror, 96, Config.Colors.Dread, "IT HAS YOUR VOICE")
-	word.TextXAlignment = Enum.TextXAlignment.Center
-	Vhs.burst(1, 0.5)
-	task.wait(0.5)
-	Vhs.cut(true)
-	task.wait(0.9)
-	if connection then
-		connection:Disconnect()
-	end
 	if camera then
 		camera.CameraType = Enum.CameraType.Custom
 		camera.FieldOfView = 70
 	end
-	TweenService:Create(word, TweenInfo.new(0.8), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-	Vhs.fade(false, 1.4)
-	task.wait(1)
-	overlay:Destroy()
 end
 
-local function elevator(seconds: number)
+local function grab(model: Instance?, line: string)
+	local camera = workspace.CurrentCamera
+	local head = if model then model:FindFirstChild("Skull") :: BasePart? else nil
+	jumpscareSound:Play()
+	grabSound:Play()
+	Vhs.burst(0.85, 0.3)
+	shake(1.2, 0.8)
+	releaseCamera()
+	if camera and head then
+		camera.CameraType = Enum.CameraType.Scriptable
+		local start = os.clock()
+		grabConnection = RunService.RenderStepped:Connect(function()
+			local t = os.clock() - start
+			local face = head.CFrame
+			-- an arm's length from the mask, drifting closer the whole time
+			local eye = (face * CFrame.new(0.25, -0.35, -5.4 + math.min(t / 0.4, 1) * 2.2 + math.min(t / 3.4, 1) * 1.1)).Position
+			local jitter = if Vhs.ReducedFlashing then 0.004 else 0.014
+			camera.CFrame = CFrame.lookAt(eye, face.Position) * CFrame.Angles(rng:NextNumber(-jitter, jitter), rng:NextNumber(-jitter, jitter), math.sin(t * 2.2) * 0.05)
+			camera.FieldOfView = 70 - 20 * math.min(t / 0.35, 1)
+		end)
+	end
+	task.delay(0.7, Hud.subtitle, line, false)
+end
+
+local function grabEnd(brokeFree: boolean)
+	if brokeFree then
+		releaseCamera()
+		shake(0.9, 0.5)
+		gaspSound:Play()
+		return
+	end
+	-- it puts you to bed
+	Vhs.burst(1, 0.4)
+	Vhs.cut(true)
+	releaseCamera()
+	task.wait(1.5)
+	gaspSound:Play()
+	Vhs.fade(false, 1.8)
+end
+
+----------------------------------------------------------------------------
+-- Other set pieces
+----------------------------------------------------------------------------
+local function elevator(seconds: number, briefing: boolean?)
 	Vhs.fade(true, 1)
 	elevatorSound:Play()
-	shake(0.18, seconds)
-	task.wait(seconds)
+	shake(0.15, seconds)
+	task.wait(1.1)
+	if briefing then
+		Hud.briefing()
+	end
+	task.wait(math.max(0, seconds - 1.1))
 	Vhs.fade(false, 1.6)
-	Hud.locationCard("SUBLEVEL 1", "MARROW CREEK RELAY  —  02:14 AM")
+	Hud.locationCard(Lore.Location, Lore.CaseNumber .. "  —  02:14 AM")
+end
+
+-- A camera flash somewhere on the ward: a hard white light for a blink.
+local function flash(position: Vector3, mine: boolean)
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.Transparency = 1
+	part.Size = Vector3.new(0.2, 0.2, 0.2)
+	part.Position = position + Vector3.new(0, 1.5, 0)
+	part.Parent = workspace
+	local light = Instance.new("PointLight")
+	light.Range = 60
+	light.Brightness = if Vhs.ReducedFlashing then 2 else 8
+	light.Color = Color3.fromRGB(235, 240, 255)
+	light.Shadows = true
+	light.Parent = part
+	if mine then
+		Vhs.flash(0.45)
+	end
+	task.delay(0.14, function()
+		part:Destroy()
+	end)
 end
 
 local handlers: { [string]: (...any) -> () } = {
 	Toast = function(text: string, kind: string?)
 		Hud.toast(text, kind)
 	end,
+	Banner = function(headline: string, sub: string?, tone: string?)
+		Hud.banner(headline, sub, tone)
+	end,
 	Subtitle = function(text: string, glitch: boolean?)
 		Hud.subtitle(text, glitch)
 	end,
-	Tape = function(index: number, title: string, body: string)
-		Hud.showTape(index, title, body)
+	Asked = function(line: string, seconds: number)
+		Hud.asked(line, seconds)
 	end,
 	Note = function(id: string)
 		Hud.showNote(id)
 	end,
 	Results = function(results: Hud.Results)
-		task.delay(if results.Outcome == "Escaped" then 0.5 else 3.2, Hud.showResults, results)
+		task.delay(if results.Outcome == "Escaped" then 0.5 else 3.4, Hud.showResults, results)
 	end,
 	Flicker = function(seconds: number)
 		Atmosphere.flicker(seconds)
 	end,
+	PowerOut = function()
+		powerSound:Play()
+		Atmosphere.flicker(1.6)
+		Atmosphere.PowerOut = true
+		shake(0.4, 0.8)
+	end,
 	Shake = function(amount: number, seconds: number, position: Vector3?)
 		shake(amount, seconds, position)
 	end,
-	Elevator = function(seconds: number)
-		elevator(seconds)
+	Elevator = function(seconds: number, briefing: boolean?)
+		elevator(seconds, briefing)
 	end,
-	Jumpscare = function(model: Instance?)
-		jumpscare(model)
+	Grab = function(model: Instance?, line: string)
+		grab(model, line)
+	end,
+	GrabEnd = function(brokeFree: boolean)
+		grabEnd(brokeFree)
+	end,
+	Flash = function(position: Vector3, mine: boolean)
+		flash(position, mine)
 	end,
 	ScareAll = function(buyer: string)
 		Atmosphere.flicker(3)
 		Vhs.burst(0.7, 0.6)
 		shake(0.8, 1.4)
 		howlSound:Play()
-		Hud.subtitle(`{buyer} CRANKED THE SIREN. SOMETHING ANSWERED.`, true)
+		Hud.banner("CODE BLUE. CODE BLUE.", string.upper(buyer) .. " paged the building. Something answered.", "bad")
 	end,
 	Teleporting = function()
 		elevatorSound:Play()
 		Vhs.fade(true, 1.2)
-		Hud.toast("DESCENDING...", "info")
+		Hud.toast("GOING UP...", "info")
 	end,
 	TeleportFailed = function()
 		Vhs.fade(false, 0.6)
@@ -181,7 +243,7 @@ local handlers: { [string]: (...any) -> () } = {
 			stingSound:Play()
 			Vhs.burst(0.8, 0.45)
 			shake(0.7, 0.6)
-			Hud.subtitle("THAT WAS NOT YOUR CREWMATE.", true)
+			Hud.banner("THAT WAS NOT YOUR CREWMATE.", "", "bad")
 		end
 	end,
 }
@@ -190,6 +252,25 @@ Remotes.ToClient.OnClientEvent:Connect(function(name: string, ...: any)
 	local handler = handlers[name]
 	if handler then
 		task.spawn(handler, ...)
+	end
+end)
+
+----------------------------------------------------------------------------
+-- Event lines driven by what the server knows about you
+----------------------------------------------------------------------------
+local wasHunted = false
+player:GetAttributeChangedSignal("Hunted"):Connect(function()
+	local hunted = player:GetAttribute("Hunted") == true
+	if hunted and not wasHunted then
+		Hud.banner(Lore.Banners.Sees[1], Lore.Banners.Sees[2], "bad")
+	elseif wasHunted and not hunted and player:GetAttribute("InShift") and not player:GetAttribute("Grabbed") then
+		Hud.banner(Lore.Banners.Lost[1], Lore.Banners.Lost[2], "info")
+	end
+	wasHunted = hunted
+end)
+player:GetAttributeChangedSignal("HeardAt"):Connect(function()
+	if player:GetAttribute("InShift") and not player:GetAttribute("Hunted") then
+		Hud.banner(Lore.Banners.Hears[1], Lore.Banners.Hears[2], "bad")
 	end
 end)
 

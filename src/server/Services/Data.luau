@@ -16,7 +16,8 @@ export type Profile = {
 	Caught: number,
 	Reels: number,
 	Rescues: number,
-	Keys: number, -- banked Rusted Keys (self-revives)
+	Keys: number, -- banked adrenaline shots (each saves you from being kept, once)
+	Xp: number,
 	Notes: { [string]: boolean },
 	Purchases: { string }, -- recent PurchaseIds, for idempotent receipts
 	SeenIntro: boolean,
@@ -36,7 +37,7 @@ pcall(function()
 end)
 
 local function blank(): Profile
-	return { Escapes = 0, Shifts = 0, Caught = 0, Reels = 0, Rescues = 0, Keys = 0, Notes = {}, Purchases = {}, SeenIntro = false }
+	return { Escapes = 0, Shifts = 0, Caught = 0, Reels = 0, Rescues = 0, Keys = 0, Xp = 0, Notes = {}, Purchases = {}, SeenIntro = false }
 end
 
 local function key(player: Player): string
@@ -72,6 +73,7 @@ function Data.load(player: Player): Profile
 		player:SetAttribute("Keys", profile.Keys)
 		player:SetAttribute("Escapes", profile.Escapes)
 		player:SetAttribute("SeenIntro", profile.SeenIntro)
+		player:SetAttribute("Xp", profile.Xp or 0)
 	end
 	return profile
 end
@@ -92,7 +94,7 @@ function Data.retryLoad(player: Player)
 		if success and session and player.Parent then
 			if type(result) == "table" then
 				local stored = result :: { [string]: any }
-				for _, field in { "Escapes", "Shifts", "Caught", "Reels", "Rescues", "Keys" } do
+				for _, field in { "Escapes", "Shifts", "Caught", "Reels", "Rescues", "Keys", "Xp" } do
 					if type(stored[field]) == "number" then
 						(session :: any)[field] += stored[field]
 					end
@@ -160,6 +162,17 @@ function Data.bump(player: Player, field: "Escapes" | "Shifts" | "Caught" | "Ree
 			player:SetAttribute("Escapes", profile.Escapes)
 		end
 	end
+end
+
+-- Adds experience and returns the new total.
+function Data.addXp(player: Player, amount: number): number
+	local profile = profiles[player]
+	if not profile then
+		return amount
+	end
+	profile.Xp = (profile.Xp or 0) + amount
+	player:SetAttribute("Xp", profile.Xp)
+	return profile.Xp
 end
 
 function Data.hasPurchase(player: Player, purchaseId: string): boolean

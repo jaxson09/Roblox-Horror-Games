@@ -4,15 +4,16 @@
 	The server creates them; clients wait for them.
 
 	Server -> client messages (ToClient):
-	  Toast(text, kind?)            Subtitle(speaker, text, glitch?)
-	  Jumpscare(fawnModel)          Flicker(seconds)
-	  ScareAll(buyerName)           Shake(amount, seconds)
-	  Elevator(direction, seconds)  Tape(index, title, body)
-	  Note(id)                      Results(payload)
-	  Sound(name, position?)        Objective(text)
+	  Toast(text, kind?)            Banner(headline, sub, tone)
+	  Subtitle(text, glitch?)       Asked(line, seconds)
+	  Grab(model, line, canBreak, seconds)   GrabEnd(brokeFree)
+	  Flash(position, mine)         Flicker(seconds)   PowerOut()
+	  ScareAll(buyerName)           Shake(amount, seconds, position?)
+	  Elevator(seconds, briefing)   Note(id)           Results(payload)
+	  Teleporting()  TeleportFailed()  DecoyReveal(position)
 	Client -> server messages (ToServer):
 	  Sprint(on) Crouch(on) Flashlight(on) NightVision(on) HoldBreath(on)
-	  ExitLocker() Struggle(on) Dazzle() IntroSeen()
+	  ExitLocker() Struggle() Photo(lookVector) Answer() Dazzle() IntroSeen()
 	  PartyCreate(maxPlayers, difficulty, part) PartyStart() PartyLeave()
 ]]
 
