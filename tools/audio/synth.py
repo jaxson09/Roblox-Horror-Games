@@ -202,11 +202,6 @@ def chase_theme():
     riser = filt(noise(dur), lo=800, hi=6000, order=2) * ((tt % (16 * beat)) / (16 * beat)) ** 3 * 0.25
     y = drive(norm(y + riser), 1.8)
     return norm(loopable(reverb(y, 0.9, 0.15, tail=False), 1.0), 0.85)
-def broadcast_tone():
-    dur = 6.0; tt = t(dur)
-    y = (np.sin(2 * np.pi * 853 * tt) + np.sin(2 * np.pi * 960 * tt)) * ((tt % 2) < 1.1) * 0.4
-    y += np.sin(phase(1200 + 600 * np.sign(np.sin(2 * np.pi * 37 * tt)))) * ((tt % 2) >= 1.2) * ((tt % 2) < 1.8) * 0.25  # data burst
-    return norm(loopable(filt(y, lo=300, hi=3400, order=3) + filt(noise(dur), lo=500, hi=4000, order=2) * 0.04, 0.3), 0.6)
 def alarm_loop():
     dur = 2.4; tt = t(dur); f = 430 + 190 * ((tt % 1.2) / 1.2)
     return norm(loopable(reverb(drive(saw(f, 20) * ((tt % 1.2) < 0.95), 2), 1.5, 0.3, tail=False), 0.2), 0.7)
@@ -228,34 +223,15 @@ def door_close():
     y = np.zeros(int(1.0 * SR)); mixin(y, scrape(0.6, 260, 1500), 0); mixin(y, thump(80, 0.4, 0.07) + clank(0.4, [240, 410, 660], 0.08) * 0.4, 0.55)
     return norm(reverb(y, 1.2, 0.3))
 def door_slam(): return norm(reverb(thump(65, 0.8, 0.14) * 1.4 + clank(0.8, [190, 337, 548, 910, 1470], 0.22) * 0.6 + filt(noise(0.8), lo=300, hi=6000, order=2) * decay(0.8, 0.03), 2.0, 0.35), 0.95)
-def blast_door():
-    dur = 5.2; tt = t(dur); y = saw(glide([(0, 28), (0.2, 44), (0.9, 40), (1, 24)], dur), 40) * 0.5 + scrape(dur, 140, 900, 0.8) + filt(noise(dur), hi=160, order=2) * 1.2
-    y *= env(len(tt), 0.3, 0.2); mixin(y, thump(50, 0.7, 0.2) * 2 + clank(0.7, [120, 207, 331, 590], 0.3), dur - 0.75)
-    return norm(reverb(y, 3.0, 0.4), 0.95)
 def locker(): return norm(reverb(thump(110, 0.5, 0.05) + clank(0.5, [420, 713, 1130, 1840, 2600], 0.09) * 0.7 + filt(noise(0.5), lo=2000, order=2) * decay(0.5, 0.015) * 0.5, 0.7, 0.25))
 def pickup():
     y = np.zeros(int(0.35 * SR)); mixin(y, filt(noise(0.02), lo=2000) * decay(0.02, 0.004), 0); mixin(y, clank(0.3, [1250, 1880, 2700], 0.05), 0.02, 0.6)
     return norm(y, 0.7)
-def fuse_insert():
-    y = np.zeros(int(0.9 * SR)); mixin(y, clank(0.25, [900, 1410, 2230], 0.03) + thump(140, 0.25, 0.03), 0)
-    zap = filt(noise(0.5), lo=1500, hi=9000, order=2) * (np.sin(2 * np.pi * 100 * t(0.5)) > 0.6) * decay(0.5, 0.15); mixin(y, zap, 0.15, 0.9)
-    return norm(y)
-def power_up():
-    dur = 4.5; tt = t(dur); f = glide([(0, 22), (0.55, 98), (1, 120)], dur)
-    y = saw(f, 30) * glide([(0, 0), (0.1, 0.5), (0.6, 1), (1, 0.5)], dur) + saw(f * 2.01, 10) * 0.3
-    for at in (0.05, 1.3, 2.1, 2.6, 2.9): mixin(y, thump(120, 0.2, 0.03) * 2 + clank(0.2, [800, 1300], 0.03), at)
-    buzz = saw(np.full(len(tt), 120.0), 40) * (rng.random(len(tt)) > 0.2) * glide([(0, 0), (0.6, 0), (0.7, 0.25), (1, 0.12)], dur)
-    return norm(reverb(filt(y, hi=3000, order=2) + filt(buzz, lo=800, order=2), 2.5, 0.35), 0.95)
 def elevator():
     dur = 8.0; tt = t(dur); y = filt(noise(dur), hi=120, order=2) * 2.5 + saw(glide([(0, 30), (0.1, 46), (0.85, 44), (1, 20)], dur), 30) * 0.5
     for at in np.arange(0.4, 6.8, 0.62): mixin(y, clank(0.3, [330, 560, 910, 1500], 0.06) * 0.5 + thump(90, 0.3, 0.04), at + rng.uniform(-0.05, 0.05), rng.uniform(0.3, 0.6))
     y *= env(len(tt), 0.6, 0.4); mixin(y, thump(55, 0.9, 0.2) * 3 + clank(0.9, [150, 262, 431, 700], 0.3), 7.0)
     return norm(reverb(y, 2.2, 0.35), 0.95)
-def cage_rattle():
-    y = np.zeros(int(1.1 * SR))
-    for at in (0, 0.13, 0.31, 0.42, 0.66, 0.8): mixin(y, clank(0.3, [520, 877, 1390, 2250, 3100], 0.07), at, rng.uniform(0.5, 1))
-    return norm(reverb(y, 1.0, 0.3))
-def cage_open(): return norm(reverb(np.concatenate([scrape(0.9, 700, 2600), clank(0.5, [300, 520, 870, 1400], 0.12)]), 1.3, 0.3))
 def light_flicker():
     dur = 1.4; tt = t(dur); gate = (filt(noise(dur), hi=18, order=2) > 0.03)
     return norm(filt(saw(np.full(len(tt), 100.0), 60), lo=600, order=2) * gate + filt(noise(dur), lo=3000, order=2) * gate * 0.3, 0.6)
@@ -297,9 +273,9 @@ SOUNDS = {
     "fawn_howl_1": lambda: howl(11), "fawn_howl_2": lambda: howl(23, 5.6, 150, 420, 1320), "fawn_howl_3": lambda: howl(37, 7.4, 190, 520, 1750),
     "fawn_shriek": lambda: shriek_cache, "fawn_step": step, "fawn_idle_loop": idle_loop, "fawn_mimic_1": lambda: mimic(5), "fawn_mimic_2": lambda: mimic(9),
     "jumpscare": jumpscare, "sting_low": sting, "static_loop": static_loop, "heartbeat_loop": heartbeat_loop, "bunker_drone": bunker_drone,
-    "forest_night": forest_night, "lobby_theme": lobby_theme, "chase_theme": chase_theme, "broadcast_tone": broadcast_tone, "alarm_loop": alarm_loop,
-    "effigy_whisper": effigy_whisper, "door_open": door_open, "door_close": door_close, "door_slam": door_slam, "blast_door": blast_door, "locker": locker,
-    "pickup": pickup, "fuse_insert": fuse_insert, "power_up": power_up, "elevator": elevator, "cage_rattle": cage_rattle, "cage_open": cage_open,
+    "forest_night": forest_night, "lobby_theme": lobby_theme, "chase_theme": chase_theme, "alarm_loop": alarm_loop,
+    "effigy_whisper": effigy_whisper, "door_open": door_open, "door_close": door_close, "door_slam": door_slam, "locker": locker,
+    "pickup": pickup, "elevator": elevator, 
     "camera_shutter": camera_shutter, "tube_send": tube_send, "power_down": power_down, "grab": grab_sting,
     "light_flicker": light_flicker, "flashlight_click": flashlight_click, "ui_blip": ui_blip, "ui_type": ui_type, "tape_start": tape_start, "breath_gasp": breath_gasp,
 }

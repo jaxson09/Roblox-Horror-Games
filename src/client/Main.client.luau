@@ -55,6 +55,7 @@ local stingSound = Sfx.make(stings, "Sting", { Volume = 0.9 })
 local elevatorSound = Sfx.make(stings, "Elevator", { Volume = 0.9 })
 local powerSound = Sfx.make(stings, "PowerDown", { Volume = 1 })
 local gaspSound = Sfx.make(stings, "Breath", { Volume = 0.8 })
+local tapeSound = Sfx.make(stings, "TapeStart", { Volume = 0.8 })
 
 ----------------------------------------------------------------------------
 -- Camera shake (shared by every scare)
@@ -150,6 +151,7 @@ local function elevator(seconds: number, briefing: boolean?)
 	shake(0.15, seconds)
 	task.wait(1.1)
 	if briefing then
+		tapeSound:Play() -- the tape deck clunks on
 		Hud.briefing()
 	end
 	task.wait(math.max(0, seconds - 1.1))

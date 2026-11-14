@@ -513,10 +513,12 @@ local function descend(riders: { Player }, fresh: boolean)
 		if not member then
 			continue
 		end
-		-- new investigators get the training tape, but only on the ride that opens a case:
-		-- nobody should sit through it while their crew is already being hunted
+		-- New investigators get the training tape, but only while it is safe to watch it:
+		-- on the ride that opens a case, or while HUSH is still on its dock with time to spare.
+		-- Nobody sits through a tape while their crew is already being hunted.
 		local profile = Data.get(player)
-		local briefing = fresh and profile ~= nil and profile.Shifts < 2
+		local timeToWatch = fresh or (Fawn.state() == "Dormant" and os.clock() + S.BriefingSeconds + 8 <= wakeAt)
+		local briefing = timeToWatch and profile ~= nil and profile.Shifts < 2
 		local seconds = if briefing then S.BriefingSeconds else S.ElevatorRideTime
 		longest = math.max(longest, seconds)
 		member.Riding = true

@@ -50,7 +50,7 @@ Recommended server size: 20–30 (it is a lobby; each crew plays on its own priv
 
 ### Audio
 
-All 40 sounds were synthesized for this game by `tools/audio/synth.py` and are in `assets/audio/`. Upload them to the **JBrosDev** account (Studio → Asset Manager → Bulk Import), then paste each asset id next to its name in `Config.Sounds` (`src/shared/Config.luau`). An id of `0` is silent, so the game runs before this is done. `assets/images/vhs_noise.png` is an optional static texture for `Config.Images.Noise`.
+All 34 sounds were synthesized for this game by `tools/audio/synth.py` and are in `assets/audio/`. Upload them to the **JBrosDev** account (Studio → Asset Manager → Bulk Import), then paste each asset id next to its name in `Config.Sounds` (`src/shared/Config.luau`). An id of `0` is silent, so the game runs before this is done. `assets/images/vhs_noise.png` is an optional static texture for `Config.Images.Noise`.
 
 ### Monetization setup
 
