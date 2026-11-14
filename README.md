@@ -92,6 +92,8 @@ src/client     UI/  Vhs overlay, Hud, Theme     Controllers/  Atmosphere, Moveme
 tools/         typecheck (offline Luau analysis + map tests) · audio (the synthesizer)
 ```
 
+![Sublevel map](docs/sublevel-map.png)
+
 The level is the ASCII grid in `MapData.luau` — edit the characters to move rooms, doors, lockers, effigies and spawn points. FAWN navigates that grid directly, so it never depends on the navmesh.
 
 ### Checking changes without Studio
