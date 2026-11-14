@@ -8,3 +8,4 @@ tools/typecheck/roblox.d.luau
 tools/typecheck/globalTypes.d.luau
 .DS_Store
 __pycache__/
+*.zip

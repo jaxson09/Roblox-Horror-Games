@@ -21,11 +21,15 @@ function Chat.init()
 		if not window then
 			return
 		end
-		window.HorizontalAlignment = Enum.HorizontalAlignment.Left
-		window.VerticalAlignment = Enum.VerticalAlignment.Top
-		window.FontFace = Theme.Fonts.Body
+		-- Each of these is a courtesy. Some chat settings may only be writable in Studio,
+		-- so every write is attempted on its own and a refusal changes nothing else.
+		pcall(function()
+			window.FontFace = Theme.Fonts.Body
+		end)
 		if input then
-			input.FontFace = Theme.Fonts.Body
+			pcall(function()
+				input.FontFace = Theme.Fonts.Body
+			end)
 		end
 		while true do
 			local camera = workspace.CurrentCamera
@@ -40,11 +44,16 @@ function Chat.init()
 					right = math.max(right, input.AbsolutePosition.X + input.AbsoluteSize.X)
 					bottom = math.max(bottom, input.AbsolutePosition.Y + input.AbsoluteSize.Y)
 				end
-				if right > maxWidth + 1 and window.WidthScale > 0.3 then
-					window.WidthScale = math.max(0.3, window.WidthScale * maxWidth / right)
-				end
-				if bottom > maxHeight + 1 and window.HeightScale > 0.3 then
-					window.HeightScale = math.max(0.3, window.HeightScale * maxHeight / bottom)
+				local allowed = pcall(function()
+					if right > maxWidth + 1 and window.WidthScale > 0.3 then
+						window.WidthScale = math.max(0.3, window.WidthScale * maxWidth / right)
+					end
+					if bottom > maxHeight + 1 and window.HeightScale > 0.3 then
+						window.HeightScale = math.max(0.3, window.HeightScale * maxHeight / bottom)
+					end
+				end)
+				if not allowed then
+					return -- this client may not resize the chat: leave it exactly as Roblox drew it
 				end
 			end
 			task.wait(1)

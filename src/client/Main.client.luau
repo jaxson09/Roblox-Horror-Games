@@ -145,18 +145,38 @@ end
 ----------------------------------------------------------------------------
 -- Other set pieces
 ----------------------------------------------------------------------------
+local CARD_SECONDS = 3.2 -- the title card at the end of the ride (the server allows for it)
+
 local function elevator(seconds: number, briefing: boolean?)
+	local started = os.clock()
+	local riding = true
 	Vhs.fade(true, 1)
 	elevatorSound:Play()
 	shake(0.15, seconds)
+	-- the black screen always says something: a field tip, changed every few seconds
+	task.spawn(function()
+		local index = rng:NextInteger(1, #Lore.Tips)
+		while riding do
+			Vhs.caption("GOING UP  -  " .. Lore.Tips[index])
+			index = index % #Lore.Tips + 1
+			task.wait(3.5)
+		end
+	end)
 	task.wait(1.1)
 	if briefing then
 		tapeSound:Play() -- the tape deck clunks on
-		Hud.briefing()
+		Hud.briefing() -- covers the caption while it plays; if skipped, the tips are underneath
 	end
-	task.wait(math.max(0, seconds - 1.1))
+	task.wait(math.max(0, seconds - CARD_SECONDS - (os.clock() - started)))
+	riding = false
+	Vhs.caption(nil)
+	-- only announce the ward if the lift is actually going to arrive there
+	if workspace:GetAttribute("HS_Phase") == "Case" then
+		Hud.locationCard(Lore.Location, Lore.CaseNumber .. "  -  02:14 AM", CARD_SECONDS)
+	end
+	task.wait(math.max(0, seconds - (os.clock() - started)))
+	Vhs.caption(nil)
 	Vhs.fade(false, 1.6)
-	Hud.locationCard(Lore.Location, Lore.CaseNumber .. "  —  02:14 AM")
 end
 
 -- A camera flash somewhere on the ward: a hard white light for a blink.
@@ -206,6 +226,9 @@ local handlers: { [string]: (...any) -> () } = {
 		Atmosphere.flicker(seconds)
 	end,
 	PowerOut = function()
+		if player:GetAttribute("InShift") ~= true then
+			return -- the lobby is on a different circuit
+		end
 		powerSound:Play()
 		Atmosphere.flicker(1.6)
 		Atmosphere.PowerOut = true
@@ -236,11 +259,15 @@ local handlers: { [string]: (...any) -> () } = {
 	Teleporting = function()
 		elevatorSound:Play()
 		Vhs.fade(true, 1.2)
-		Hud.toast("GOING UP...", "info")
+		Vhs.caption("GOING UP...") -- on the black screen itself, where it can be read
 		-- if the teleport never happens, never leave the player on a black screen
-		task.delay(15, Vhs.fade, false, 1)
+		task.delay(15, function()
+			Vhs.caption(nil)
+			Vhs.fade(false, 1)
+		end)
 	end,
 	TeleportFailed = function()
+		Vhs.caption(nil)
 		Vhs.fade(false, 0.6)
 	end,
 	DecoyReveal = function(position: Vector3)

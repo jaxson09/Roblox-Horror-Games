@@ -23,6 +23,7 @@ local noiseImage: ImageLabel? = nil
 local staticLayer: Frame
 local fadeFrame: Frame
 local flashFrame: Frame
+local captionLabel: TextLabel
 local redFrame: Frame
 local trackBar: Frame
 local baseStatic = 0
@@ -98,6 +99,12 @@ function Vhs.init()
 	local fadeGui = Theme.screen("HS_Fade", 80)
 	fadeFrame = Theme.frame(fadeGui, "Fade", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), black, 1)
 	flashFrame = Theme.frame(fadeGui, "Flash", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(1, 1, 1), 1)
+	-- one line of text on the black screen itself (lift rides, teleports), low and centred
+	captionLabel = Theme.label(fadeGui, "Caption", UDim2.new(0.7, 0, 0, 28), UDim2.new(0.15, 0, 0.82, 0), Theme.Fonts.Body, 18, Color3.fromRGB(190, 190, 182), "")
+	captionLabel.TextXAlignment = Enum.TextXAlignment.Center
+	captionLabel.TextYAlignment = Enum.TextYAlignment.Center
+	Theme.fitText(captionLabel, 18)
+	captionLabel.Visible = false
 
 	local acc = 0
 	local nextRoll = os.clock() + 6
@@ -147,6 +154,12 @@ end
 
 function Vhs.setDread(amount: number)
 	redFrame.BackgroundTransparency = 1 - math.clamp(amount, 0, 1) * 0.5
+end
+
+-- Text shown on the black screen so a dark wait is never just a dark wait. nil clears it.
+function Vhs.caption(text: string?)
+	captionLabel.Text = text or ""
+	captionLabel.Visible = text ~= nil
 end
 
 function Vhs.fade(toBlack: boolean, seconds: number)

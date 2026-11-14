@@ -92,6 +92,7 @@ local holdingBreath = false
 local askedUntil = 0
 local askedFor = 5
 local modals = 0
+local bannerTweens: { Tween } = {}
 local touch = false
 
 local function send(name: string, value: any?)
@@ -174,7 +175,7 @@ local function applyLayout()
 		end
 	end
 	local head = rects.BannerHead
-	bannerRule.Position = UDim2.fromOffset(head.X + head.W / 2, head.Y + head.H + 4)
+	bannerRule.Position = UDim2.fromOffset(head.X + head.W / 2, head.Y + head.H + 1)
 end
 
 ----------------------------------------------------------------------------
@@ -185,6 +186,11 @@ function Hud.toast(text: string, kind: string?)
 	if player:GetAttribute("PartyRole") ~= nil then
 		return
 	end
+	-- a full-screen panel is up (case file, field report...): hold the message until it closes
+	if modals > 0 then
+		task.delay(0.5, Hud.toast, text, kind)
+		return
+	end
 	local color = if kind == "bad" then C.Rec elseif kind == "good" then C.Phosphor elseif kind == "store" then C.Robux else C.Osd
 	local labels: { Instance } = {}
 	for _, child in toasts:GetChildren() do
@@ -192,8 +198,8 @@ function Hud.toast(text: string, kind: string?)
 			table.insert(labels, child)
 		end
 	end
-	if #labels >= 3 then
-		labels[1]:Destroy() -- three lines is all the band holds
+	if #labels >= (if touch then 2 else 3) then
+		labels[1]:Destroy() -- the band holds three rows on a desktop, two on a phone
 	end
 	local label = line(toasts, "Toast", UDim2.new(1, 0, 0, 20), UDim2.fromScale(0, 0), F.Body, T.Toast, color, text)
 	label.TextXAlignment = Enum.TextXAlignment.Center
@@ -220,21 +226,32 @@ function Hud.banner(headline: string, sub: string?, tone: string?)
 	bannerHead.TextColor3 = color
 	bannerSub.Text = sub or ""
 	bannerRule.BackgroundColor3 = color
-	for _, object in { bannerHead, bannerSub } do
-		object.TextTransparency = 1
-		TweenService:Create(object, TweenInfo.new(0.3), { TextTransparency = 0 }):Play()
+	-- stop anything still fading from the previous line, then start this one clean
+	for _, tween in bannerTweens do
+		tween:Cancel()
 	end
+	table.clear(bannerTweens)
+	local function run(object: Instance, seconds: number, goal: { [string]: any })
+		local tween = TweenService:Create(object, TweenInfo.new(seconds, Enum.EasingStyle.Quad), goal)
+		table.insert(bannerTweens, tween)
+		tween:Play()
+	end
+	bannerHead.TextTransparency, bannerHead.TextStrokeTransparency = 1, 1
+	bannerSub.TextTransparency, bannerSub.TextStrokeTransparency = 1, 1
+	run(bannerHead, 0.3, { TextTransparency = 0, TextStrokeTransparency = 0.5 })
+	run(bannerSub, 0.3, { TextTransparency = 0.15, TextStrokeTransparency = 0.6 })
 	bannerRule.Size = UDim2.fromOffset(0, 1)
 	bannerRule.BackgroundTransparency = 0.3
-	TweenService:Create(bannerRule, TweenInfo.new(0.5, Enum.EasingStyle.Quad), { Size = UDim2.fromOffset(240, 1) }):Play()
+	run(bannerRule, 0.5, { Size = UDim2.fromOffset(240, 1) })
 	if tone ~= "info" then
 		blip:Play()
 	end
 	task.delay(4.2, function()
 		if bannerHead:GetAttribute("Stamp") == stamp then
-			TweenService:Create(bannerHead, TweenInfo.new(0.9), { TextTransparency = 1 }):Play()
-			TweenService:Create(bannerSub, TweenInfo.new(0.9), { TextTransparency = 1 }):Play()
-			TweenService:Create(bannerRule, TweenInfo.new(0.9), { BackgroundTransparency = 1 }):Play()
+			-- the outline has its own transparency: fade it too, or a ghost of the line stays behind
+			run(bannerHead, 0.9, { TextTransparency = 1, TextStrokeTransparency = 1 })
+			run(bannerSub, 0.9, { TextTransparency = 1, TextStrokeTransparency = 1 })
+			run(bannerRule, 0.9, { BackgroundTransparency = 1 })
 		end
 	end)
 end
@@ -255,6 +272,9 @@ function Hud.subtitle(text: string, glitch: boolean?)
 				chars[rng:NextInteger(1, #chars)] = GLITCH[rng:NextInteger(1, #GLITCH)]
 				subtitle.Text = table.concat(chars)
 				task.wait(0.08)
+				if subtitle:GetAttribute("Stamp") ~= stamp then
+					break -- something newer is being said
+				end
 				subtitle.Text = text
 				task.wait(rng:NextNumber(0.15, 0.6))
 			end
@@ -324,9 +344,10 @@ function Hud.showNote(id: string)
 	task.delay(25, dismiss)
 end
 
--- "MERIDIAN GENERAL HOSPITAL - WARD C": the card when you step out of the lift.
-function Hud.locationCard(title: string, sub: string)
-	modal(true)
+-- "MERIDIAN GENERAL HOSPITAL - WARD C": the title card at the end of the lift ride.
+-- It is drawn above the black fade while the screen is still dark, and is gone by
+-- the time the picture comes back, so it never sits on top of the HUD.
+function Hud.locationCard(title: string, sub: string, seconds: number)
 	local overlay = Theme.screen("HS_Card", 85)
 	local box = Theme.frame(overlay, "Box", UDim2.fromOffset(900, 110), UDim2.fromScale(0.5, 0.42), DARK, 1)
 	box.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -336,20 +357,19 @@ function Hud.locationCard(title: string, sub: string)
 	local s = line(box, "Sub", UDim2.new(1, 0, 0, 26), UDim2.fromOffset(0, 70), F.Body, 18, C.Amber, sub)
 	s.TextXAlignment = Enum.TextXAlignment.Center
 	s.MaxVisibleGraphemes = 0
-	Theme.typewrite(t, title, 22, function()
+	Theme.typewrite(t, title, 36, function()
 		typeSound:Play()
 	end)
-	task.delay(#title / 22 + 0.3, function()
+	task.delay(#title / 36 + 0.2, function()
 		if s.Parent then
-			Theme.typewrite(s, sub, 30)
+			Theme.typewrite(s, sub, 40)
 		end
 	end)
-	task.delay(6, function()
-		TweenService:Create(t, TweenInfo.new(1), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-		TweenService:Create(s, TweenInfo.new(1), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-		task.wait(1.1)
+	task.delay(seconds - 0.5, function()
+		TweenService:Create(t, TweenInfo.new(0.4), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+		TweenService:Create(s, TweenInfo.new(0.4), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+		task.wait(0.5)
 		overlay:Destroy()
-		modal(false)
 	end)
 end
 
@@ -687,6 +707,9 @@ local function build()
 	breathButton.MouseButton1Up:Connect(function()
 		send("HoldBreath", false)
 	end)
+	breathButton.MouseLeave:Connect(function()
+		send("HoldBreath", false)
+	end)
 	exitButton.MouseButton1Click:Connect(function()
 		send("ExitLocker")
 	end)
@@ -760,7 +783,7 @@ local function update()
 	show("Location", working)
 	show("Noise", working)
 	show("Stamina", working)
-	show("Hints", working)
+	show("Hints", working and not UserInputService.TouchEnabled) -- touch buttons live in that corner
 	show("Subtitle", subtitle:GetAttribute("Showing") == true)
 	show("Ask", inShift and os.clock() < askedUntil)
 	show("LobbyHint", not inShift)
@@ -859,7 +882,7 @@ function Hud.init()
 	end)
 	UserInputService.InputBegan:Connect(function(input, processed)
 		local key = input.KeyCode
-		if key == Enum.KeyCode.Space or key == Enum.KeyCode.ButtonA then
+		if (key == Enum.KeyCode.Space or key == Enum.KeyCode.ButtonA) and not processed then
 			if player:GetAttribute("Hidden") and not holdingBreath then
 				holdingBreath = true
 				send("HoldBreath", true)

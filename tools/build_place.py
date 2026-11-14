@@ -55,7 +55,7 @@ def build():
             prop("float", "CameraMaxZoomDistance", "12"), prop("float", "CameraMinZoomDistance", "0.5"),
             prop("float", "CharacterWalkSpeed", "12"), prop("float", "CharacterJumpHeight", "0"),
             prop("bool", "CharacterUseJumpPower", "false"), prop("float", "NameDisplayDistance", "0"),
-            prop("float", "HealthDisplayDistance", "0"),
+            prop("float", "HealthDisplayDistance", "0"), prop("bool", "EnableMouseLockOption", "false"),
         ], [item("StarterPlayerScripts", "StarterPlayerScripts", children=[item("Folder", "Client", children=tree(os.path.join(SRC, "client")))])]),
         item("Lighting", "Lighting"),
         item("SoundService", "SoundService", [prop("bool", "RespectFilteringEnabled", "true")]),

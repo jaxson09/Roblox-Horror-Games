@@ -42,8 +42,15 @@ for (const screen of data.screens) {
   const buttons = screen.touch ? Object.entries(data.buttons).map(([name, b]) => [
     'touch:' + name, { X: screen.w - b.OX / screen.scale, Y: screen.h - b.OY / screen.scale, W: data.buttonSize / screen.scale, H: data.buttonSize / screen.scale },
   ]) : [];
-  for (const [state, names] of Object.entries(data.states)) {
-    const items = names.filter((n) => screen.rects[n]).map((n) => [n, screen.rects[n]]).concat(state === 'Lobby' ? [] : buttons);
+  // A touchscreen laptop gets the desktop arrangement AND the touch buttons; the key
+  // hints are hidden there, so that corner belongs to the buttons.
+  const hybridButtons = screen.touch ? [] : Object.entries(data.buttons).map(([name, b]) => [
+    'touch:' + name, { X: screen.w - b.OX / screen.scale, Y: screen.h - b.OY / screen.scale, W: data.buttonSize / screen.scale, H: data.buttonSize / screen.scale },
+  ]);
+  const passes = Object.entries(data.states).map(([state, names]) => [state, names, buttons]);
+  if (!screen.touch) for (const [state, names] of Object.entries(data.states)) passes.push([state + ' + touchscreen', names.filter((n) => n !== 'Hints'), hybridButtons]);
+  for (const [state, names, stateButtons] of passes) {
+    const items = names.filter((n) => screen.rects[n]).map((n) => [n, screen.rects[n]]).concat(state.startsWith('Lobby') ? [] : stateButtons);
     for (const [name, r] of items) {
       checks++;
       if (r.X < 0 || r.Y < 0 || r.X + r.W > screen.w + 0.01 || r.Y + r.H > screen.h + 0.01 || r.W <= 0 || r.H <= 0) {
@@ -58,5 +65,5 @@ for (const screen of data.screens) {
     }
   }
 }
-console.log(`${data.screens.length} screen sizes x ${Object.keys(data.states).length} states, ${checks} checks, ${problems} problem(s)`);
+console.log(`${data.screens.length} screen sizes x ${Object.keys(data.states).length} states (plus touchscreen-laptop variants), ${checks} checks, ${problems} problem(s)`);
 process.exit(problems ? 1 : 0);

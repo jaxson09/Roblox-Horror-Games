@@ -56,6 +56,13 @@ local difficulty: Config.Difficulty = Config.Difficulties.Normal
 local difficultyKey = "Normal"
 local onEnded: (() -> ())? = nil
 
+-- How long the lift ride lasts when the training tape plays: 1.1 s of fade, every
+-- slide, then the 3.2 s title card (see client elevator()), plus a little slack.
+local briefingSeconds = 4.8
+for _, slide in Lore.Briefing do
+	briefingSeconds += slide.Seconds
+end
+
 local function now(): number
 	return workspace:GetServerTimeNow()
 end
@@ -472,7 +479,7 @@ local function startShift()
 	shiftId += 1
 	photos, sent, lastPhotoAt, returnEnds = 0, 0, 0, 0
 	startedAt = os.clock()
-	wakeAt = os.clock() + S.GracePeriod + S.BriefingSeconds
+	wakeAt = os.clock() + S.GracePeriod + briefingSeconds
 	Facility.reset(facility)
 	Fawn.reset()
 	Fawn.setTuning(difficulty.Speed, difficulty.Hearing)
@@ -517,9 +524,9 @@ local function descend(riders: { Player }, fresh: boolean)
 		-- on the ride that opens a case, or while HUSH is still on its dock with time to spare.
 		-- Nobody sits through a tape while their crew is already being hunted.
 		local profile = Data.get(player)
-		local timeToWatch = fresh or (Fawn.state() == "Dormant" and os.clock() + S.BriefingSeconds + 8 <= wakeAt)
+		local timeToWatch = fresh or (Fawn.state() == "Dormant" and os.clock() + briefingSeconds + 8 <= wakeAt)
 		local briefing = timeToWatch and profile ~= nil and profile.Shifts < 2
-		local seconds = if briefing then S.BriefingSeconds else S.ElevatorRideTime
+		local seconds = if briefing then briefingSeconds else S.ElevatorRideTime
 		longest = math.max(longest, seconds)
 		member.Riding = true
 		Crew.setAnchored(player, true) -- they cannot see: do not let them wander

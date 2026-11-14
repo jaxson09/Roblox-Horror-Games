@@ -55,8 +55,13 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 	local fill = Theme.frame(key, "Fill", UDim2.fromScale(1, 0), UDim2.fromScale(0, 1), C.Osd, 0.55)
 	fill.AnchorPoint = Vector2.new(0, 1)
 
+	-- both lines are fitted to their rows, so a long action can never run into the tag below
 	local object = Theme.label(gui, "Object", UDim2.new(1, -44, 0, 16), UDim2.fromOffset(44, 8), Theme.Fonts.Mono, 13, C.Amber, "")
+	object.TextYAlignment = Enum.TextYAlignment.Center
+	Theme.fitText(object, 13)
 	local action = Theme.label(gui, "Action", UDim2.new(1, -44, 0, 20), UDim2.fromOffset(44, 24), Theme.Fonts.MonoBold, 16, if purchase then C.Robux else C.Osd, "")
+	action.TextYAlignment = Enum.TextYAlignment.Center
+	Theme.fitText(action, 16)
 	if purchase then
 		Theme.label(gui, "Tag", UDim2.new(1, -44, 0, 12), UDim2.fromOffset(44, 46), Theme.Fonts.Osd, 7, C.Robux, "ROBUX PURCHASE")
 	end

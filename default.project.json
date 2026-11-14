@@ -3,10 +3,14 @@
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
-      "Shared": { "$path": "src/shared" }
+      "Shared": {
+        "$path": "src/shared"
+      }
     },
     "ServerScriptService": {
-      "Server": { "$path": "src/server" }
+      "Server": {
+        "$path": "src/server"
+      }
     },
     "StarterPlayer": {
       "$properties": {
@@ -16,10 +20,13 @@
         "CharacterJumpHeight": 0,
         "CharacterUseJumpPower": false,
         "NameDisplayDistance": 0,
-        "HealthDisplayDistance": 0
+        "HealthDisplayDistance": 0,
+        "EnableMouseLockOption": false
       },
       "StarterPlayerScripts": {
-        "Client": { "$path": "src/client" }
+        "Client": {
+          "$path": "src/client"
+        }
       }
     },
     "Workspace": {

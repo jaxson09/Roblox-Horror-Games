@@ -134,7 +134,7 @@ function PartyUi.init()
 
 	-- always at the bottom: takes you out of the circle
 	local leave = Theme.button(panel, "Leave", UDim2.new(1, 0, 0, 36), UDim2.new(0, 0, 1, -36), "LEAVE")
-	leave.Modal = true
+	-- (Modal is switched on only while this screen is showing, so it never frees the cursor in a case)
 	leave.MouseButton1Click:Connect(function()
 		click:Play()
 		Remotes.ToServer:FireServer("PartyLeave")
@@ -163,9 +163,11 @@ function PartyUi.init()
 		local disc = findPad(Theme.num(player, "PartyPad", 0))
 		if type(role) ~= "string" or not disc then
 			gui.Enabled = false
+			leave.Modal = false
 			return
 		end
 		gui.Enabled = true
+		leave.Modal = true
 		config.Visible = role == "Config"
 		lobby.Visible = role ~= "Config"
 

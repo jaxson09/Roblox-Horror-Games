@@ -69,8 +69,7 @@ Config.Player = {
 -- The shift (one run)
 ----------------------------------------------------------------------------
 Config.Shift = {
-	ElevatorRideTime = 7,
-	BriefingSeconds = 21, -- a longer ride with the training tape, on your first two cases
+	ElevatorRideTime = 7, -- the ride with the training tape is longer: its length is worked out from the tape
 	PhotosNeeded = 5,
 	CanistersPerStation = 2, -- each tube station can only send this many
 	SendHold = 5, -- seconds to load and fire a canister
