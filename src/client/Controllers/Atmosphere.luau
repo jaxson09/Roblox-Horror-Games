@@ -38,7 +38,7 @@ type Profile = {
 }
 
 local PROFILES: { [string]: Profile } = {
-	Lobby = { Ambient = Color3.fromRGB(16, 20, 30), Outdoor = Color3.fromRGB(30, 38, 56), Density = 0.44, Haze = 2.2, AtmoColor = Color3.fromRGB(46, 56, 76), Brightness = 0.7, Exposure = 0, Saturation = -0.3, Contrast = 0.12, Tint = Color3.fromRGB(222, 230, 245) },
+	Lobby = { Ambient = Color3.fromRGB(14, 16, 16), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.4, Haze = 1.6, AtmoColor = Color3.fromRGB(20, 24, 22), Brightness = 0, Exposure = 0.05, Saturation = -0.35, Contrast = 0.15, Tint = Color3.fromRGB(228, 236, 226) },
 	Blackout = { Ambient = Color3.fromRGB(4, 5, 5), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.5, Haze = 1.2, AtmoColor = Color3.fromRGB(8, 10, 10), Brightness = 0, Exposure = -0.1, Saturation = -0.45, Contrast = 0.2, Tint = Color3.fromRGB(226, 236, 226) },
 	Powered = { Ambient = Color3.fromRGB(9, 11, 10), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.46, Haze = 1.4, AtmoColor = Color3.fromRGB(14, 18, 16), Brightness = 0, Exposure = 0, Saturation = -0.4, Contrast = 0.18, Tint = Color3.fromRGB(226, 236, 222) },
 	Lockdown = { Ambient = Color3.fromRGB(22, 5, 5), Outdoor = Color3.fromRGB(0, 0, 0), Density = 0.44, Haze = 1.4, AtmoColor = Color3.fromRGB(30, 8, 8), Brightness = 0, Exposure = 0.05, Saturation = -0.25, Contrast = 0.25, Tint = Color3.fromRGB(255, 214, 208) },
@@ -133,6 +133,21 @@ local function stepLights(dt: number)
 			end
 		end
 	end
+	local lobbyFolder = world and world:FindFirstChild("Lobby")
+	local hall = lobbyFolder and lobbyFolder:FindFirstChild("Hall")
+	if hall then
+		for _, child in hall:GetChildren() do
+			if child.Name == "Lamp" and child:IsA("BasePart") then
+				local part = child :: BasePart
+				local episodeEnds = lampStates[part] or 0
+				if now > episodeEnds and rng:NextNumber() < dt * 0.12 then
+					episodeEnds = now + rng:NextNumber(0.1, 0.8)
+					lampStates[part] = episodeEnds
+				end
+				setLamp(part, not (globalFlicker or now < episodeEnds) or rng:NextNumber() < 0.5)
+			end
+		end
+	end
 	for _, candle in CollectionService:GetTagged("HS_Candle") do
 		local light = candle:FindFirstChildOfClass("PointLight")
 		if light then
@@ -192,8 +207,8 @@ function Atmosphere.init()
 	task.spawn(function()
 		local world = workspace:WaitForChild("World", 30)
 		local lobby = world and world:WaitForChild("Lobby", 30)
-		local cabin = lobby and lobby:WaitForChild("Cabin", 30)
-		local radio = cabin and cabin:WaitForChild("RadioSet", 30)
+		local hall = lobby and lobby:WaitForChild("Hall", 30)
+		local radio = hall and hall:WaitForChild("RadioSet", 30)
 		if radio then
 			musicSound = Sfx.make(radio, "LobbyTheme", { Volume = 0.85, Looped = true, MinDistance = 26, MaxDistance = 260 })
 			musicSound:Play()
@@ -229,7 +244,7 @@ function Atmosphere.init()
 
 		local inShift = player:GetAttribute("InShift") == true
 		local dread = if inShift then Atmosphere.Dread else 0
-		mix("LobbyForest", if inShift then 0 else 0.4, dt)
+		mix("LobbyForest", if inShift then 0 else 0.12, dt) -- wind against the sealed doors
 		mix("BunkerDrone", if inShift then 0.45 else 0, dt)
 		mix("ChaseTheme", if inShift and Atmosphere.Chased then 0.75 else 0, dt)
 		mix("Alarm", if inShift and workspace:GetAttribute("HS_Phase") == "Escape" then 0.4 else 0, dt)

@@ -24,7 +24,18 @@ What is new here:
 - **Mimicry.** FAWN broadcasts lines in real crew members' names, and stands a copy of a teammate at the end of a corridor, facing away. Walk up to it and it turns its head all the way round, screams, and calls FAWN to you. It prefers to wear players it has already taken.
 - **The Kennel.** Being caught is not death: you are caged. A teammate can open the gate, you get one free break-out per shift, and after that there is a rusted key on the wall.
 - **Carrier signal.** The camcorder overlay fills with static and your heartbeat rises as FAWN gets closer.
-- **Drop-in shifts.** One server, one sublevel: the elevator takes new crews down into a shift already in progress.
+- **Difficulty.** Easy, Normal and Nightmare change how fast FAWN moves, how far it hears, how long a cage holds and how many free break-outs you get.
+
+## The lobby
+
+Everyone loads into the **intake hall** — the station's surface level: a long, half-lit concrete hall with the sealed entrance behind you and four freight elevator doors at the far end. In front of each door is a glowing circle.
+
+1. Step into an empty circle and the **Create Lobby** screen opens: crew size (1, 2, 3, 4 or 6), difficulty, and chapter. Part 1 is playable; Parts 2 and 3 are listed as *In development* and cannot be picked.
+2. Press **Create Lobby**. The sign over the circle shows whose lobby it is and its settings. Anyone who walks into the circle joins.
+3. **Leave** is always at the bottom of the screen and puts you back outside the circle. Walking out does the same. If the creator leaves, the next player becomes the host.
+4. The creator can press **Start Match** at any time. When the lobby is full a **15-second countdown** starts the match automatically (it cancels if someone leaves).
+
+Starting a lobby sends that crew to its own private server of the same place, straight into the sublevel; when the shift ends everyone is returned to a public lobby. In Studio there is no teleporting, so the match starts in the same session. The supply shelf (game passes) is on the left wall partway down the hall, and the emergency siren (scare everyone) is on a pillar near the entrance.
 
 ## Running it
 
@@ -34,7 +45,7 @@ What is new here:
 3. In Studio: **Game Settings → Security → Enable Studio Access to API Services** (for saves), and confirm **Workspace.StreamingEnabled is off** (the project file sets it; the live-sync plugin cannot).
 4. Press Play. The whole world is generated from code at server start.
 
-Recommended server size: 8.
+Recommended server size: 20–30 (it is a lobby; each crew plays on its own private server). The lobby-to-match teleport only works in a published game, not in Studio.
 
 ### Audio (required for sound)
 
@@ -60,7 +71,7 @@ Create these on the Creator Dashboard and paste the ids into `Config.Products` /
 
 How purchases are presented (deliberately, and to stay inside Roblox policy):
 
-- They are part of the world — deer-skull effigies FAWN leaves as "trade posts", a key, a siren, a shelf — never a pop-up or a button on the HUD. The lobby shop is inside the cabin on the left wall; you spawn outside facing the elevator.
+- They are part of the world — deer-skull effigies FAWN leaves as "trade posts", a key, a siren, a shelf — never a pop-up or a button on the HUD. The lobby shop is a shelf on the left wall of the hall; you spawn facing the elevators, not the shop.
 - Every purchase prompt names the item, shows the **live** Robux price, and carries a small "ROBUX PURCHASE" tag before Roblox's own confirmation dialog opens. They are subtle, not disguised: Roblox requires purchases to be transparent, and disguised prompts aimed at minors are how games get moderated.
 - Nothing is sold that would do nothing (no "free everyone" when nobody is caged), and a purchase that cannot be applied the moment it lands is banked as a Rusted Key instead of being lost.
 - Most products help the whole crew, which is what keeps a paid item from reading as pay-to-win in a co-op game.
@@ -75,6 +86,7 @@ How purchases are presented (deliberately, and to stay inside Roblox policy):
 
 | Action | Keyboard | Touch / gamepad |
 | --- | --- | --- |
+| Create / join a lobby | Walk into a circle | Walk into a circle |
 | Sprint | Left Shift | RUN button / L3 |
 | Crouch (quiet) | C or Left Ctrl | CROUCH button / R3 |
 | Flashlight | F | LIGHT button / Y |
@@ -88,8 +100,8 @@ How purchases are presented (deliberately, and to stay inside Roblox policy):
 ```
 src/shared     Config (all tuning, ids, fonts) · MapData (ASCII level) · Grid (A*, line of sight) · Lore · Remotes · Sfx
 src/server     World/  Facility, Lobby, FawnRig, Build — everything is built from parts at runtime
-               Services/  Shift (the run) · Fawn (AI) · Crew (player state) · Store (Robux) · Data (saves)
-src/client     UI/  Vhs overlay, Hud, Theme     Controllers/  Atmosphere, Movement, Flashlight, FawnAnimator, Prompts
+               Services/  Parties (lobby circles) · Shift (the run) · Fawn (AI) · Crew (player state) · Store (Robux) · Data (saves)
+src/client     UI/  Vhs overlay, Hud, PartyUi (lobby screen), Theme     Controllers/  Atmosphere, Movement, Flashlight, FawnAnimator, Prompts
 tools/         typecheck (offline Luau analysis + map tests) · audio (the synthesizer)
 ```
 

@@ -15,7 +15,8 @@ Lore.Intro = {
 }
 
 Lore.Objectives = {
-	Lobby = "TAKE THE FREIGHT ELEVATOR DOWN",
+	Lobby = "FORM A CREW IN A CIRCLE AT THE FAR END OF THE HALL",
+	LobbyMatch = "SHIFT IN PROGRESS BELOW  //  STEP INTO A CIRCLE TO GO BACK DOWN",
 	Blackout = "RESTORE POWER  //  FUSES %d/%d",
 	BlackoutInstall = "INSTALL THE FUSES  //  GENERATOR ROOM",
 	Tapes = "RECOVER THE REELS  //  %d/%d",

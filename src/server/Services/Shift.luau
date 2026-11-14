@@ -52,7 +52,9 @@ local escapeEnds = 0
 local wakeAt = 0
 local endedAt = 0
 local startedAt = 0
-local padTimer = -1
+local difficulty: Config.Difficulty = Config.Difficulties.Normal
+local difficultyKey = "Normal"
+local onEnded: (() -> ())? = nil
 local nextLureAt = 0
 local scareReadyAt = 0
 
@@ -68,6 +70,7 @@ local function publish()
 	workspace:SetAttribute("HS_Progress", math.floor(progress * 100))
 	workspace:SetAttribute("HS_Drift", drift)
 	workspace:SetAttribute("HS_EscapeEnds", escapeEnds)
+	workspace:SetAttribute("HS_Difficulty", difficultyKey)
 end
 
 local function setPhase(name: string)
@@ -258,7 +261,7 @@ local function catch(member: Crew.Member)
 	end
 	member.Cage = cage
 	member.CagedAt = os.clock()
-	member.CageEnds = now() + S.CageSeconds + 2
+	member.CageEnds = now() + difficulty.CageSeconds + 2
 	member.Struggling = false
 	member.StruggleProgress = 0
 	table.insert(cage.Occupants, player)
@@ -529,6 +532,7 @@ local function startShift()
 	wakeAt = os.clock() + S.GracePeriod + 90 -- it also wakes when power returns
 	Facility.reset(facility)
 	Fawn.reset()
+	Fawn.setTuning(difficulty.Speed, difficulty.Hearing)
 	local noteIds = {}
 	for _, note in Lore.Notes do
 		table.insert(noteIds, note.Id)
@@ -573,7 +577,8 @@ local function descend(riders: { Player })
 			end
 			-- going back down after being taken: allowed, but on borrowed time
 			local returning = member.ShiftId == shiftId and member.Eliminated
-			Crew.enterShift(member, shiftId, if Store.owns(player, "SecondWind") then 1 else 0)
+			local extra = difficulty.FreeStruggles - S.FreeStruggles + (if Store.owns(player, "SecondWind") then 1 else 0)
+			Crew.enterShift(member, shiftId, extra)
 			if returning then
 				member.StrugglesLeft = 0
 				Crew.sync(member)
@@ -588,41 +593,7 @@ local function descend(riders: { Player })
 	end
 end
 
-local function stepElevator(dt: number)
-	local riders = {}
-	for _, player in Players:GetPlayers() do
-		local member = Crew.get(player)
-		local pos = Crew.position(player)
-		if member and pos and not member.InShift then
-			local offset = pos - lobby.PadCenter
-			if math.abs(offset.X) < lobby.PadSize.X / 2 and math.abs(offset.Z) < lobby.PadSize.Z / 2 and offset.Y > -2 and offset.Y < 12 then
-				table.insert(riders, player)
-			end
-		end
-	end
-	local label = lobby.CountdownLabel
-	if phase == "Escape" or phase == "Ended" then
-		padTimer = -1
-		label.Text = "FREIGHT 01\nLOCKED — SHIFT ENDING"
-	elseif #riders == 0 then
-		padTimer = -1
-		label.Text = if phase == "Idle" then "FREIGHT 01\nSTEP ON TO DESCEND" else "FREIGHT 01\nSHIFT IN PROGRESS — STEP ON TO JOIN"
-	else
-		if padTimer < 0 then
-			padTimer = S.ElevatorCountdown
-		end
-		padTimer -= dt
-		label.Text = `DESCENDING IN {math.max(0, math.ceil(padTimer))}\nCREW ABOARD: {#riders}`
-		if padTimer <= 0 then
-			padTimer = -1
-			descend(riders)
-		end
-	end
-	workspace:SetAttribute("HS_PadTimer", math.ceil(padTimer))
-end
-
 local function step(dt: number)
-	stepElevator(dt)
 	Crew.step(dt, function(player)
 		return Store.owns(player, "Flashlight")
 	end)
@@ -633,6 +604,10 @@ local function step(dt: number)
 		if os.clock() - endedAt > S.ResultsSeconds then
 			Facility.reset(facility)
 			setPhase("Idle")
+			local ended = onEnded
+			if ended then
+				task.spawn(ended)
+			end
 		end
 		return
 	end
@@ -938,6 +913,34 @@ local function refreshBoard()
 		table.insert(lines, string.format("%d.  %s  —  %d", i, entry.Name, entry.Escapes))
 	end
 	lobby.BoardLabel.Text = table.concat(lines, "\n")
+end
+
+-- Sends a crew down. Starts a new shift on the chosen difficulty if none is running,
+-- otherwise the crew drops into the shift already in progress.
+function Shift.begin(players: { Player }, chosenDifficulty: string?): boolean
+	if phase == "Escape" or phase == "Ended" then
+		for _, player in players do
+			toast(player, "A SHIFT IS ENDING BELOW. TRY AGAIN IN A MOMENT.", "info")
+		end
+		return false
+	end
+	if phase == "Idle" then
+		difficultyKey = if chosenDifficulty and Config.Difficulties[chosenDifficulty] then chosenDifficulty else "Normal"
+		difficulty = Config.Difficulties[difficultyKey]
+		startShift()
+	end
+	descend(players)
+	return true
+end
+
+-- May this player use the lobby circles right now?
+function Shift.inLobby(player: Player): boolean
+	local member = Crew.get(player)
+	return member ~= nil and not member.InShift
+end
+
+function Shift.onEnded(callback: () -> ())
+	onEnded = callback
 end
 
 function Shift.init(theFacility: Facility.Facility, theLobby: Lobby.Lobby)

@@ -12,7 +12,8 @@
 	  Sound(name, position?)        Objective(text)
 	Client -> server messages (ToServer):
 	  Sprint(on) Crouch(on) Flashlight(on) NightVision(on) HoldBreath(on)
-	  ExitLocker() Struggle(on) Dazzle(lookVector) LeaveShift() Ready()
+	  ExitLocker() Struggle(on) Dazzle() IntroSeen()
+	  PartyCreate(maxPlayers, difficulty, part) PartyStart() PartyLeave()
 ]]
 
 local RunService = game:GetService("RunService")

@@ -63,7 +63,6 @@ Config.Player = {
 -- The shift (one run)
 ----------------------------------------------------------------------------
 Config.Shift = {
-	ElevatorCountdown = 15, -- seconds on the pad before the cage drops
 	ElevatorRideTime = 7,
 	FusesNeeded = 3,
 	TapesNeeded = 4,
@@ -80,6 +79,32 @@ Config.Shift = {
 	StruggleHold = 6, -- seconds of holding to break out
 	RescueHold = 3.5, -- seconds a teammate holds to open a cage
 	MaxPlayersHint = 8,
+}
+
+----------------------------------------------------------------------------
+-- Lobby: crews form in the circles at the far end of the intake hall.
+----------------------------------------------------------------------------
+Config.Lobby = {
+	PadCount = 4,
+	PlayerOptions = { 1, 2, 3, 4, 6 },
+	DefaultPlayers = 4,
+	AutoStartSeconds = 15, -- countdown once a lobby is full
+}
+
+export type Difficulty = { Label: string, Blurb: string, Speed: number, Hearing: number, CageSeconds: number, FreeStruggles: number }
+
+Config.Difficulties = {
+	Easy = { Label = "EASY", Blurb = "She is slower and hard of hearing. Two free break-outs.", Speed = 0.9, Hearing = 0.8, CageSeconds = 90, FreeStruggles = 2 },
+	Normal = { Label = "NORMAL", Blurb = "The shift as it was meant to be worked.", Speed = 1, Hearing = 1, CageSeconds = 70, FreeStruggles = 1 },
+	Nightmare = { Label = "NIGHTMARE", Blurb = "Faster. Hears everything. No free break-outs.", Speed = 1.07, Hearing = 1.25, CageSeconds = 50, FreeStruggles = 0 },
+} :: { [string]: Difficulty }
+Config.DifficultyOrder = { "Easy", "Normal", "Nightmare" }
+
+-- Chapters. Only available ones can be selected; the rest show as in development.
+Config.Parts = {
+	{ Name = "PART 1", Title = "THE RELAY", Available = true },
+	{ Name = "PART 2", Title = "IN DEVELOPMENT", Available = false },
+	{ Name = "PART 3", Title = "IN DEVELOPMENT", Available = false },
 }
 
 ----------------------------------------------------------------------------

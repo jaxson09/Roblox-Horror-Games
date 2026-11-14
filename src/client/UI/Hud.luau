@@ -296,7 +296,10 @@ end
 local function objectiveText(): string
 	local O = Lore.Objectives
 	if not player:GetAttribute("InShift") then
-		return O.Lobby
+		if player:GetAttribute("PartyRole") then
+			return "" -- the lobby screen is open
+		end
+		return if workspace:GetAttribute("HS_Mode") == "Match" then O.LobbyMatch else O.Lobby
 	end
 	if player:GetAttribute("Caged") then
 		local left = math.max(0, math.ceil(Theme.num(player, "CageEnds", 0) - workspace:GetServerTimeNow()))

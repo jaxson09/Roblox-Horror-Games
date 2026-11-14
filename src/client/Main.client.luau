@@ -18,6 +18,7 @@ local FawnAnimator = require(script.Parent.Controllers.FawnAnimator)
 local Flashlight = require(script.Parent.Controllers.Flashlight)
 local Movement = require(script.Parent.Controllers.Movement)
 local Prompts = require(script.Parent.Controllers.Prompts)
+local PartyUi = require(script.Parent.UI.PartyUi)
 
 local player = Players.LocalPlayer
 local rng = Random.new()
@@ -40,6 +41,7 @@ Movement.init()
 Flashlight.init()
 FawnAnimator.init()
 Prompts.init()
+PartyUi.init()
 
 local stings = Instance.new("Folder")
 stings.Name = "HS_Stings"
@@ -164,6 +166,14 @@ local handlers: { [string]: (...any) -> () } = {
 		shake(0.8, 1.4)
 		howlSound:Play()
 		Hud.subtitle(`{buyer} CRANKED THE SIREN. SOMETHING ANSWERED.`, true)
+	end,
+	Teleporting = function()
+		elevatorSound:Play()
+		Vhs.fade(true, 1.2)
+		Hud.toast("DESCENDING...", "info")
+	end,
+	TeleportFailed = function()
+		Vhs.fade(false, 0.6)
 	end,
 	DecoyReveal = function(position: Vector3)
 		local camera = workspace.CurrentCamera

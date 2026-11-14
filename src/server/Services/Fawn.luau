@@ -68,6 +68,8 @@ local stuckAnchor = Vector3.zero
 local stuckSince = 0
 local skins: { Player } = {}
 local decoys: { Decoy } = {}
+local speedScale = 1 -- difficulty
+local hearScale = 1
 
 local function log(...: any)
 	if Config.Debug then
@@ -81,11 +83,11 @@ end
 
 local function speedFor(name: string): number
 	if name == "Patrol" then
-		return F.PatrolSpeed
+		return F.PatrolSpeed * speedScale
 	elseif name == "Investigate" or name == "Search" then
-		return F.InvestigateSpeed
+		return F.InvestigateSpeed * speedScale
 	elseif name == "Chase" then
-		return if enraged then F.EnragedSpeed else F.ChaseSpeed
+		return (if enraged then F.EnragedSpeed else F.ChaseSpeed) * speedScale
 	end
 	return 0
 end
@@ -252,7 +254,7 @@ local function canHear(member: Crew.Member, pos: Vector3): boolean
 		return false
 	end
 	local me = rig.Root.Position
-	local radius = member.Noise * F.HearRadius
+	local radius = member.Noise * F.HearRadius * hearScale
 	if not Grid.lineOfSight(facility.Map, me.X, me.Z, pos.X, pos.Z) then
 		radius *= F.WallMuffle
 	end
@@ -282,7 +284,7 @@ function Fawn.hear(position: Vector3, loudness: number, ignoreDeadAir: boolean?)
 		return
 	end
 	local me = rig.Root.Position
-	local radius = loudness * F.HearRadius
+	local radius = loudness * F.HearRadius * hearScale
 	if not Grid.lineOfSight(facility.Map, me.X, me.Z, position.X, position.Z) then
 		radius *= F.WallMuffle
 	end
@@ -731,6 +733,12 @@ function Fawn.reset()
 	rig.Model:PivotTo(CFrame.new(facility.NestPosition + Vector3.new(0, FawnRig.RootHeight, 0)))
 	rig.Model:SetAttribute("State", "Dormant")
 	workspace:SetAttribute("HS_FawnState", "Dormant")
+end
+
+-- Difficulty: how fast it moves and how far it hears.
+function Fawn.setTuning(speed: number, hearing: number)
+	speedScale = speed
+	hearScale = hearing
 end
 
 function Fawn.setEnraged(on: boolean)
