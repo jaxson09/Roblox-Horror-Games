@@ -125,7 +125,9 @@ end
 local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseDecision
 	local player = Players:GetPlayerByUserId(receipt.PlayerId)
 	local kind = kindByProductId[receipt.ProductId]
-	if not player or not kind or not Data.get(player) then
+	-- Only settle a receipt against a profile that can actually be saved; otherwise
+	-- Roblox keeps the purchase pending and offers it again later.
+	if not player or not kind or not Data.get(player) or not Data.isLoaded(player) then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 	local purchaseId = tostring(receipt.PurchaseId)

@@ -20,7 +20,7 @@ Config.Debug = false
 Config.World = {
 	CellSize = 8, -- studs per map cell
 	CeilingHeight = 12,
-	DoorHeight = 10,
+	DoorHeight = 11,
 	-- World position of map cell (0,0)'s outer corner; Y is the floor surface.
 	FacilityOrigin = Vector3.new(-188, -400, -128),
 	LobbyFloorY = 0,

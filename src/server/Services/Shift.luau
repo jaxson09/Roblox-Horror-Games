@@ -25,6 +25,7 @@ local Grid = require(ReplicatedStorage.Shared.Grid)
 local Lore = require(ReplicatedStorage.Shared.Lore)
 local MapData = require(ReplicatedStorage.Shared.MapData)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Sfx = require(ReplicatedStorage.Shared.Sfx)
 local Facility = require(script.Parent.Parent.World.Facility)
 local Lobby = require(script.Parent.Parent.World.Lobby)
 local Crew = require(script.Parent.Crew)
@@ -177,13 +178,21 @@ local function free(member: Crew.Member, how: string)
 	end
 	Crew.sync(member)
 	Crew.setAnchored(member.Player, false)
-	Facility.setCageOpen(cage, true)
 	Crew.teleport(member.Player, cage.ExitCF)
 	toast(member.Player, how, "good")
 	Fawn.hear(cage.Gate.Position, 0.5)
-	task.delay(2.5, function()
-		Facility.setCageOpen(cage, false)
-	end)
+	-- only swing the gate when the cage is empty, or the others would walk out still "caged"
+	if #cage.Occupants == 0 then
+		Facility.setCageOpen(cage, true)
+		task.delay(2.5, function()
+			Facility.setCageOpen(cage, false)
+		end)
+	else
+		local rattle = cage.Gate:FindFirstChild("CageRattle") :: Sound?
+		if rattle then
+			rattle:Play()
+		end
+	end
 end
 
 local function sendResults(member: Crew.Member, outcome: string)
@@ -467,7 +476,6 @@ local function onItem(item: Facility.Item, player: Player)
 		return
 	end
 	local position = item.Root.Position
-	local pickup = item.Root:FindFirstChild("Pickup") :: Sound?
 	if item.Kind == "Note" then
 		local profile = Data.get(player)
 		if profile and item.Data then
@@ -476,12 +484,7 @@ local function onItem(item: Facility.Item, player: Player)
 		Remotes.ToClient:FireClient(player, "Note", item.Data)
 		return
 	end
-	if pickup then
-		-- move the sound off the part so it survives the part being destroyed
-		pickup.Parent = workspace.Terrain
-		pickup:Play()
-		Debris:AddItem(pickup, 3)
-	end
+	Sfx.playAt(position, "Pickup", { Volume = 0.6, MaxDistance = 50 })
 	item.Root:Destroy()
 	if item.Kind == "Battery" then
 		member.Battery = math.min(1, member.Battery + Config.Player.BatteryPickup)
@@ -968,6 +971,9 @@ function Shift.init(theFacility: Facility.Facility, theLobby: Lobby.Lobby)
 				member.Locker.Prompt.Enabled = true
 			end
 			leaveCage(member)
+			-- anything still holding this member (e.g. FAWN's target) must see them as gone
+			member.Locker = nil
+			member.InShift = false
 		end
 		budgets[player] = nil
 		Crew.remove(player)

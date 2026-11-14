@@ -36,6 +36,9 @@ local function show(prompt: ProximityPrompt, inputType: Enum.ProximityPromptInpu
 	if prompt:GetAttribute("CagedOnly") and not player:GetAttribute("Caged") then
 		return
 	end
+	if prompt:GetAttribute("HideWhenCaged") and player:GetAttribute("Caged") then
+		return
+	end
 	local purchase = prompt:GetAttribute("Product") ~= nil or prompt:GetAttribute("Pass") ~= nil
 
 	local gui = Instance.new("BillboardGui")

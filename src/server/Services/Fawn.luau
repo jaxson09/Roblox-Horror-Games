@@ -159,7 +159,8 @@ local function cellPoint(idx: number, y: number): Vector3
 	return Vector3.new(x, y, z)
 end
 
-local function moveToward(point: Vector3, direct: boolean)
+-- Returns false when there is no route to the point (it does not move).
+local function moveToward(point: Vector3, direct: boolean): boolean
 	local map = facility.Map
 	local now = os.clock()
 	local pos = rig.Root.Position
@@ -169,9 +170,16 @@ local function moveToward(point: Vector3, direct: boolean)
 	local gy = math.clamp(rawY, 1, map.Height)
 	local goalIdx = Grid.index(map, gx, gy)
 	if goalIdx ~= pathGoalIdx or now - pathAt > 0.8 then
-		path = Grid.findPath(map, sx, sy, gx, gy) or {}
+		local found = Grid.findPath(map, sx, sy, gx, gy)
 		pathGoalIdx = goalIdx
 		pathAt = now
+		if not found then
+			path = {}
+			pathGoalIdx = 0
+			stuckSince = now
+			return false
+		end
+		path = found
 	end
 	while #path > 0 and flat(pos, cellPoint(path[1], pos.Y)) < 3.4 do
 		table.remove(path, 1)
@@ -207,12 +215,13 @@ local function moveToward(point: Vector3, direct: boolean)
 	elseif now - stuckSince > 3.5 and rig.Humanoid.WalkSpeed > 0 and flat(pos, point) > 6 then
 		local cx, cy = Grid.nearestPassable(map, sx, sy)
 		local x, z = Grid.cellCenter(map, cx, cy)
-		rig.Model:PivotTo(CFrame.new(x, facility.FloorY + FawnRig.RootHeight, z))
+		rig.Model:PivotTo(CFrame.new(x, facility.FloorY + FawnRig.RootHeight, z) * rig.Root.CFrame.Rotation)
 		stuckSince = now
 		path = {}
 		pathGoalIdx = 0
 		log("unstuck")
 	end
+	return true
 end
 
 ----------------------------------------------------------------------------
@@ -504,6 +513,7 @@ function Fawn.step(dt: number)
 
 	if state == "Stagger" then
 		rig.Humanoid.WalkSpeed = 0
+		stuckSince = now
 		if now >= staggerUntil then
 			setState("Chase") -- it comes for whoever blinded it
 			lastSeenAt = now
@@ -512,6 +522,7 @@ function Fawn.step(dt: number)
 	end
 	if now < pauseUntil then
 		rig.Humanoid.WalkSpeed = 0
+		stuckSince = now -- standing still on purpose is not being stuck
 		return
 	end
 	rig.Humanoid.WalkSpeed = speedFor(state)
@@ -616,8 +627,11 @@ function Fawn.step(dt: number)
 
 	if state == "Investigate" then
 		local point = goal or me
-		moveToward(point, false)
-		if flat(me, point) < 6 or now > stateUntil then
+		local reachable = moveToward(point, false)
+		if not reachable then
+			setState("Patrol") -- it heard something it cannot get to
+			goal = nil
+		elseif flat(me, point) < 6 or now > stateUntil then
 			startSearch(point)
 		end
 	elseif state == "Search" then
@@ -628,6 +642,7 @@ function Fawn.step(dt: number)
 		end
 		if now < lingerUntil then
 			rig.Humanoid.WalkSpeed = 0
+			stuckSince = now
 			return
 		end
 		local point = goal or searchCenter
@@ -644,8 +659,8 @@ function Fawn.step(dt: number)
 				local offset = Vector3.new(rng:NextNumber(-22, 22), 0, rng:NextNumber(-22, 22))
 				goal = searchCenter + offset
 			end
-		else
-			moveToward(point, false)
+		elseif not moveToward(point, false) then
+			goal = searchCenter
 		end
 	elseif state == "Patrol" then
 		if lureActive and now >= nextLureAt then
@@ -670,7 +685,9 @@ function Fawn.step(dt: number)
 			goal = pickWander()
 			patrolPickedAt = now
 		end
-		moveToward(goal :: Vector3, false)
+		if not moveToward(goal :: Vector3, false) then
+			goal = nil -- sealed off (e.g. Control before the power is on): pick somewhere else
+		end
 	end
 end
 

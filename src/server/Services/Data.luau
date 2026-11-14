@@ -66,11 +66,54 @@ function Data.load(player: Player): Profile
 	if player.Parent then
 		profiles[player] = profile
 		loaded[player] = ok
+		if not ok and store then
+			task.spawn(Data.retryLoad, player)
+		end
 		player:SetAttribute("Keys", profile.Keys)
 		player:SetAttribute("Escapes", profile.Escapes)
 		player:SetAttribute("SeenIntro", profile.SeenIntro)
 	end
 	return profile
+end
+
+-- True once the profile really came from (and can be written back to) the DataStore.
+function Data.isLoaded(player: Player): boolean
+	return loaded[player] == true
+end
+
+-- The first load failed: keep trying, then fold this session's progress into the stored profile.
+function Data.retryLoad(player: Player)
+	while player.Parent and profiles[player] and not loaded[player] do
+		task.wait(20)
+		local success, result = pcall(function()
+			return (store :: DataStore):GetAsync(key(player))
+		end)
+		local session = profiles[player]
+		if success and session and player.Parent then
+			if type(result) == "table" then
+				local stored = result :: { [string]: any }
+				for _, field in { "Escapes", "Shifts", "Caught", "Reels", "Rescues", "Keys" } do
+					if type(stored[field]) == "number" then
+						(session :: any)[field] += stored[field]
+					end
+				end
+				if type(stored.Notes) == "table" then
+					for id in stored.Notes do
+						session.Notes[id] = true
+					end
+				end
+				if type(stored.Purchases) == "table" then
+					for _, id in stored.Purchases do
+						table.insert(session.Purchases, id)
+					end
+				end
+				session.SeenIntro = session.SeenIntro or stored.SeenIntro == true
+			end
+			loaded[player] = true
+			player:SetAttribute("Keys", session.Keys)
+			player:SetAttribute("Escapes", session.Escapes)
+		end
+	end
 end
 
 function Data.get(player: Player): Profile?

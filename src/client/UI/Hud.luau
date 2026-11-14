@@ -156,20 +156,33 @@ function Hud.showNote(id: string)
 		return
 	end
 	local overlay = Theme.screen("HS_Note", 60)
-	local paper = Theme.frame(overlay, "Paper", UDim2.fromOffset(420, 460), UDim2.new(0.5, -210, 0.5, -230), C.Paper, 0)
+	local paper = Theme.frame(overlay, "Paper", UDim2.fromOffset(420, 460), UDim2.fromScale(0.5, 0.5), C.Paper, 0)
+	paper.AnchorPoint = Vector2.new(0.5, 0.5)
 	paper.Rotation = -1.5
+	Theme.fit(paper, 560)
 	local title = Theme.label(paper, "Title", UDim2.new(1, -40, 0, 40), UDim2.fromOffset(20, 22), F.Typewriter, 22, C.Ink, note.Title)
 	title.TextStrokeTransparency = 1
 	local body = Theme.label(paper, "Body", UDim2.new(1, -40, 1, -130), UDim2.fromOffset(20, 76), F.Typewriter, 18, C.Ink, note.Body)
 	body.TextStrokeTransparency = 1
 	body.LineHeight = 1.25
-	local close = Theme.button(paper, "Close", UDim2.fromOffset(140, 30), UDim2.new(0.5, -70, 1, -44), "PUT IT BACK")
-	close.MouseButton1Click:Connect(function()
+	local close = Theme.button(paper, "Close", UDim2.fromOffset(200, 30), UDim2.new(0.5, -100, 1, -44), "PUT IT BACK [E]")
+	close.Modal = true -- frees the cursor while the camera is locked in first person
+	local opened = os.clock()
+	local keyConnection: RBXScriptConnection? = nil
+	local function dismiss()
+		if keyConnection then
+			keyConnection:Disconnect()
+			keyConnection = nil
+		end
 		overlay:Destroy()
+	end
+	keyConnection = UserInputService.InputBegan:Connect(function(input)
+		if os.clock() - opened > 0.5 and (input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.ButtonB) then
+			dismiss()
+		end
 	end)
-	task.delay(25, function()
-		overlay:Destroy()
-	end)
+	close.MouseButton1Click:Connect(dismiss)
+	task.delay(25, dismiss)
 end
 
 function Hud.locationCard(title: string, sub: string)
@@ -200,16 +213,20 @@ function Hud.showResults(results: Results)
 	TweenService:Create(back, TweenInfo.new(1.2), { BackgroundTransparency = 0.25 }):Play()
 	local escaped = results.Outcome == "Escaped"
 	local ending = if escaped then Lore.Endings.Escaped elseif results.Outcome == "Lockdown" then Lore.Endings.Lockdown else Lore.Endings.Taken
-	local title = Theme.label(overlay, "Title", UDim2.new(1, 0, 0, 70), UDim2.new(0, 0, 0.26, 0), if escaped then F.Osd else F.Horror, if escaped then 26 else 64, if escaped then C.Phosphor else C.Dread, ending[1])
+	local panel = Theme.frame(overlay, "Panel", UDim2.fromOffset(900, 380), UDim2.fromScale(0.5, 0.5), Color3.new(0, 0, 0), 1)
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	Theme.fit(panel, 520)
+	local title = Theme.label(panel, "Title", UDim2.new(1, 0, 0, 70), UDim2.fromOffset(0, 0), if escaped then F.Osd else F.Horror, if escaped then 26 else 64, if escaped then C.Phosphor else C.Dread, ending[1])
 	title.TextXAlignment = Enum.TextXAlignment.Center
-	local line = Theme.label(overlay, "Line", UDim2.new(0.6, 0, 0, 60), UDim2.new(0.2, 0, 0.26, 86), F.Typewriter, 20, C.Paper, "")
+	local line = Theme.label(panel, "Line", UDim2.new(0.8, 0, 0, 60), UDim2.new(0.1, 0, 0, 86), F.Typewriter, 20, C.Paper, "")
 	line.TextXAlignment = Enum.TextXAlignment.Center
 	Theme.typewrite(line, ending[2], 30)
 	local minutes = results.Seconds // 60
 	local stats = string.format("TIME BELOW   %02d:%02d\nREELS        %d\nFUSES        %d\nCREW FREED   %d\nESCAPES      %d", minutes, results.Seconds % 60, results.Reels, results.Fuses, results.Rescues, results.Escapes)
-	local statLabel = Theme.label(overlay, "Stats", UDim2.new(0, 320, 0, 130), UDim2.new(0.5, -160, 0.26, 170), F.Mono, 17, C.Osd, stats)
+	local statLabel = Theme.label(panel, "Stats", UDim2.new(0, 320, 0, 130), UDim2.new(0.5, -160, 0, 170), F.Mono, 17, C.Osd, stats)
 	statLabel.LineHeight = 1.2
-	local close = Theme.button(overlay, "Close", UDim2.fromOffset(200, 36), UDim2.new(0.5, -100, 0.26, 320), "BACK TO THE OUTPOST")
+	local close = Theme.button(panel, "Close", UDim2.fromOffset(200, 36), UDim2.new(0.5, -100, 0, 320), "CONTINUE")
+	close.Modal = true
 	local closed = false
 	local function dismiss()
 		if not closed then
@@ -326,13 +343,15 @@ local function build()
 	subtitle.Visible = false
 
 	shiftGroup = Theme.frame(gui, "Shift", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(0, 0, 0), 1)
-	recDot = Theme.frame(shiftGroup, "RecDot", UDim2.fromOffset(12, 12), UDim2.new(0.035, 0, 0.07, 2), C.Rec, 0)
+	recDot = Theme.frame(shiftGroup, "RecDot", UDim2.fromOffset(12, 12), UDim2.new(0.965, -76, 0.07, 46), C.Rec, 0)
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(1, 0)
 	corner.Parent = recDot
-	Theme.label(shiftGroup, "Rec", UDim2.fromOffset(80, 16), UDim2.new(0.035, 20, 0.07, 0), F.Osd, 14, C.Osd, "REC")
-	timecode = Theme.label(shiftGroup, "Timecode", UDim2.fromOffset(200, 16), UDim2.new(0.035, 0, 0.07, 24), F.Osd, 12, C.Osd, "00:00:00")
-	location = Theme.label(shiftGroup, "Location", UDim2.fromOffset(300, 18), UDim2.new(0.035, 0, 0.07, 48), F.Mono, 14, C.Amber, "")
+	Theme.label(shiftGroup, "Rec", UDim2.fromOffset(56, 16), UDim2.new(0.965, -56, 0.07, 44), F.Osd, 14, C.Osd, "REC")
+	timecode = Theme.label(shiftGroup, "Timecode", UDim2.fromOffset(200, 16), UDim2.new(0.965, -200, 0.07, 68), F.Osd, 12, C.Osd, "00:00:00")
+	timecode.TextXAlignment = Enum.TextXAlignment.Right
+	location = Theme.label(shiftGroup, "Location", UDim2.fromOffset(300, 18), UDim2.new(0.965, -300, 0.07, 90), F.Mono, 14, C.Amber, "")
+	location.TextXAlignment = Enum.TextXAlignment.Right
 	local sp = Theme.label(shiftGroup, "Sp", UDim2.fromOffset(120, 16), UDim2.new(0.965, -120, 0.07, 0), F.Osd, 14, C.Osd, "SP  BATT")
 	sp.TextXAlignment = Enum.TextXAlignment.Right
 	batteryFill = bar(shiftGroup, "Battery", UDim2.fromOffset(120, 10), UDim2.new(0.965, -120, 0.07, 24), C.Osd)

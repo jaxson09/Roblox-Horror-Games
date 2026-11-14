@@ -318,6 +318,8 @@ local function buildLocker(map: Grid.Map, folder: Instance, idx: number): Locker
 		-- seal the back half of the wall cell; the locker stands in the recess
 		local fill = if dx ~= 0 then Vector3.new(4, CEIL, CELL) else Vector3.new(CELL, CEIL, 4)
 		Build.block(model, "Fill", fill, CFrame.new(at(map, cx, cy, CEIL / 2) - Vector3.new(dx, 0, dy) * 2), C_WALL, Enum.Material.Concrete)
+		-- wall cells get no floor from the shell, so the recess needs its own
+		Build.block(model, "Floor", Vector3.new(CELL, 1, CELL), CFrame.new(at(map, cx, cy, -0.5)), FLOORS["."].Color, FLOORS["."].Material)
 	end
 	local cf = frame(map, cx, cy, dx, dy, if alcove then 1.9 else -2.2)
 	local W, D, H = 4.4, 3.4, 8
@@ -380,6 +382,8 @@ local function buildCage(map: Grid.Map, folder: Instance, idx: number): Cage
 	keyPrompt.Enabled = false
 	keyPrompt:SetAttribute("Product", "Revive")
 	keyPrompt:SetAttribute("CagedOnly", true)
+	keyPrompt.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow -- never loses the E key to the gate prompt
+	rescue:SetAttribute("HideWhenCaged", true)
 
 	return {
 		Idx = idx,
@@ -437,6 +441,7 @@ local function buildEffigy(map: Grid.Map, folder: Instance, idx: number): Effigy
 	local model = Build.model(folder, "Effigy_" .. kind)
 	local fill = if dx ~= 0 then Vector3.new(6.5, CEIL, CELL) else Vector3.new(CELL, CEIL, 6.5)
 	Build.block(model, "Fill", fill, CFrame.new(at(map, cx, cy, CEIL / 2) - Vector3.new(dx, 0, dy) * 0.75), C_WALL, Enum.Material.Concrete)
+	Build.block(model, "Floor", Vector3.new(CELL, 1, CELL), CFrame.new(at(map, cx, cy, -0.5)), FLOORS["."].Color, FLOORS["."].Material)
 	local cf = frame(map, cx, cy, dx, dy, 2.9) * CFrame.new(0, 5.6, 0)
 	-- scorched plate, wire, and the skull
 	Build.block(model, "Plate", Vector3.new(4.2, 5.4, 0.2), cf * CFrame.new(0, 0, 0.3), Color3.fromRGB(22, 18, 18), Enum.Material.Slate, { CanCollide = false })
@@ -564,7 +569,7 @@ local function buildSetPieces(map: Grid.Map, folder: Folder, facility: Facility)
 			local offset = Vector3.new(rng:NextNumber(-6, 6), 1.2, rng:NextNumber(-6, 6))
 			Facility.buildSkull(props, CFrame.new(facility.NestPosition + offset) * CFrame.Angles(rng:NextNumber(-1.4, -0.9), rng:NextNumber(0, 6), 0), 0.8)
 		end
-		local scrawl = Build.block(props, "NestScrawl", Vector3.new(0.2, 4, 12), CFrame.new(facility.NestPosition + Vector3.new(-12, 6, 0)), C_WALL, Enum.Material.Concrete, { CanCollide = false, Transparency = 1 })
+		local scrawl = Build.block(props, "NestScrawl", Vector3.new(0.2, 4, 12), CFrame.new(facility.NestPosition + Vector3.new(-19.8, 6, 0)), C_WALL, Enum.Material.Concrete, { CanCollide = false, Transparency = 1 })
 		Build.sign(scrawl, Enum.NormalId.Right, "SHE IS TRYING TO LOOK LIKE US", Config.Fonts.Scrawl, { TextColor = Color3.fromRGB(120, 16, 16), LightInfluence = 1 })
 	end
 

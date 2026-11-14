@@ -50,7 +50,7 @@ local function fawnHead(): BasePart?
 	local world = workspace:FindFirstChild("World")
 	local facility = world and world:FindFirstChild("Facility")
 	local fawn = facility and facility:FindFirstChild("FAWN")
-	return if fawn then fawn:FindFirstChild("Head") :: BasePart? else nil
+	return if fawn then fawn:FindFirstChild("Skull") :: BasePart? else nil
 end
 
 function Flashlight.init()
@@ -88,14 +88,26 @@ function Flashlight.init()
 	end, true, Enum.KeyCode.F, Enum.KeyCode.ButtonY)
 	ContextActionService:SetTitle("HS_Light", "LIGHT")
 	ContextActionService:SetPosition("HS_Light", UDim2.new(1, -90, 1, -210))
-	ContextActionService:BindAction("HS_NightVision", function(_, state)
-		if state == Enum.UserInputState.Begin and player:GetAttribute("Pass_NightVision") and usable() then
-			Atmosphere.NightVision = not Atmosphere.NightVision
-			Remotes.ToServer:FireServer("NightVision", Atmosphere.NightVision)
-			click:Play()
+	-- Night mode is only bound (and only gets a touch button) for owners of the pass
+	local nightBound = false
+	local function bindNight()
+		if nightBound or not player:GetAttribute("Pass_NightVision") then
+			return
 		end
-		return Enum.ContextActionResult.Pass
-	end, false, Enum.KeyCode.N)
+		nightBound = true
+		ContextActionService:BindAction("HS_NightVision", function(_, state)
+			if state == Enum.UserInputState.Begin and usable() then
+				Atmosphere.NightVision = not Atmosphere.NightVision
+				Remotes.ToServer:FireServer("NightVision", Atmosphere.NightVision)
+				click:Play()
+			end
+			return Enum.ContextActionResult.Pass
+		end, true, Enum.KeyCode.N, Enum.KeyCode.DPadUp)
+		ContextActionService:SetTitle("HS_NightVision", "NIGHT")
+		ContextActionService:SetPosition("HS_NightVision", UDim2.new(1, -160, 1, -230))
+	end
+	bindNight()
+	player:GetAttributeChangedSignal("Pass_NightVision"):Connect(bindNight)
 
 	-- the server turns the light off when the battery dies or you are grabbed
 	player:GetAttributeChangedSignal("LightOn"):Connect(function()

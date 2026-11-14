@@ -56,6 +56,17 @@ function Movement.init()
 	ContextActionService:SetTitle("HS_Crouch", "CROUCH")
 	ContextActionService:SetPosition("HS_Crouch", UDim2.new(1, -220, 1, -90))
 
+	-- coming back up: pull the camera out of first person so the cursor is free again
+	player:GetAttributeChangedSignal("InShift"):Connect(function()
+		if not player:GetAttribute("InShift") then
+			player.CameraMode = Enum.CameraMode.Classic
+			player.CameraMinZoomDistance = 9
+			task.delay(0.4, function()
+				player.CameraMinZoomDistance = 0.5
+			end)
+		end
+	end)
+
 	RunService.RenderStepped:Connect(function(dt)
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")

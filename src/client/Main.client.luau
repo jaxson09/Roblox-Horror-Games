@@ -27,7 +27,7 @@ while not workspace:GetAttribute("HS_Ready") do
 	task.wait(0.1)
 end
 
-for _, core in { Enum.CoreGuiType.Health, Enum.CoreGuiType.Backpack, Enum.CoreGuiType.EmotesMenu } do
+for _, core in { Enum.CoreGuiType.Health, Enum.CoreGuiType.Backpack, Enum.CoreGuiType.EmotesMenu, Enum.CoreGuiType.PlayerList } do
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(core, false)
 	end)
@@ -82,7 +82,7 @@ end)
 ----------------------------------------------------------------------------
 local function jumpscare(model: Instance?)
 	local camera = workspace.CurrentCamera
-	local head = if model then model:FindFirstChild("Head") :: BasePart? else nil
+	local head = if model then model:FindFirstChild("Skull") :: BasePart? else nil
 	jumpscareSound:Play()
 	Vhs.burst(0.9, 0.3)
 	shake(1.4, 1.6)

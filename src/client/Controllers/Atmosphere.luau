@@ -127,11 +127,9 @@ local function stepLights(dt: number)
 			else
 				setLamp(part, true)
 			end
-			if alarm then
-				local light = part:FindFirstChildOfClass("PointLight")
-				if light then
-					light.Brightness = 0.55 + 0.45 * math.sin(now * 5)
-				end
+			local light = part:FindFirstChildOfClass("PointLight")
+			if light then
+				light.Brightness = if alarm then 0.55 + 0.45 * math.sin(now * 5) else 0.85
 			end
 		end
 	end

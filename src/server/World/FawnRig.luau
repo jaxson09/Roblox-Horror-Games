@@ -114,9 +114,11 @@ function FawnRig.build(parent: Instance, position: Vector3): Rig
 	deco(model, chest, "HideFlapL", Vector3.new(0.2, 2.2, 1.6), CFrame.new(-1.75, 0.2, 0.3) * CFrame.Angles(0, 0, math.rad(-6)), HIDE, Enum.Material.Fabric)
 
 	-- head: skull, antlers, one working optic
-	local head = limb(model, "Head", Vector3.new(1.4, 1.4, 1.2), BONE, Enum.Material.Sandstone)
-	joint("Neck", chest, head, CFrame.new(0, 1.5, -0.35), CFrame.new(0, -0.9, 0.2))
-	deco(model, head, "NeckPiston", Vector3.new(0.35, 1.1, 0.35), CFrame.new(0, -0.95, 0.3), STEEL, metal)
+	-- Named "Skull", not "Head": a Humanoid forces collision on a sibling called Head,
+	-- which would catch on every door lintel.
+	local head = limb(model, "Skull", Vector3.new(1.4, 1.4, 1.2), BONE, Enum.Material.Sandstone)
+	joint("Neck", chest, head, CFrame.new(0, 1.3, -0.35), CFrame.new(0, -0.5, 0.2))
+	deco(model, head, "NeckPiston", Vector3.new(0.35, 0.8, 0.35), CFrame.new(0, -0.7, 0.3), STEEL, metal)
 	deco(model, head, "Snout", Vector3.new(0.8, 0.75, 1.7), CFrame.new(0, -0.3, -1.25) * CFrame.Angles(math.rad(10), 0, 0), BONE, Enum.Material.Sandstone)
 	deco(model, head, "NoseCavity", Vector3.new(0.5, 0.4, 0.3), CFrame.new(0, -0.3, -2.1), Color3.fromRGB(30, 22, 20), Enum.Material.Sandstone)
 	for i = 0, 3 do
@@ -135,13 +137,13 @@ function FawnRig.build(parent: Instance, position: Vector3): Rig
 	local eyeBeam = Build.spotLight(beamPlate, Enum.NormalId.Front, EYE, 2.2, 52, 34, true)
 	eyeBeam.Name = "EyeBeam"
 	for _, side in { -1, 1 } do
-		local a1 = deco(model, head, "Antler", Vector3.new(0.2, 1.9, 0.2), CFrame.new(side * 0.55, 1.3, 0.2) * CFrame.Angles(math.rad(-14), 0, math.rad(-side * 26)), BONE, Enum.Material.Sandstone)
-		local a2 = deco(model, a1, "Antler", Vector3.new(0.16, 1.5, 0.16), CFrame.new(side * 0.35, 1.3, 0) * CFrame.Angles(0, 0, math.rad(-side * 32)), BONE, Enum.Material.Sandstone)
-		deco(model, a1, "Tine", Vector3.new(0.13, 1, 0.13), CFrame.new(-side * 0.25, 0.5, -0.3) * CFrame.Angles(math.rad(-40), 0, math.rad(side * 20)), BONE, Enum.Material.Sandstone)
-		deco(model, a2, "Tine", Vector3.new(0.12, 0.9, 0.12), CFrame.new(side * 0.1, 0.5, -0.3) * CFrame.Angles(math.rad(-46), 0, 0), BONE, Enum.Material.Sandstone)
+		local a1 = deco(model, head, "Antler", Vector3.new(0.2, 1.4, 0.2), CFrame.new(side * 0.55, 1.05, 0.2) * CFrame.Angles(math.rad(-14), 0, math.rad(-side * 26)), BONE, Enum.Material.Sandstone)
+		local a2 = deco(model, a1, "Antler", Vector3.new(0.16, 1, 0.16), CFrame.new(side * 0.3, 0.95, 0) * CFrame.Angles(0, 0, math.rad(-side * 32)), BONE, Enum.Material.Sandstone)
+		deco(model, a1, "Tine", Vector3.new(0.13, 0.8, 0.13), CFrame.new(-side * 0.25, 0.35, -0.3) * CFrame.Angles(math.rad(-40), 0, math.rad(side * 20)), BONE, Enum.Material.Sandstone)
+		deco(model, a2, "Tine", Vector3.new(0.12, 0.7, 0.12), CFrame.new(side * 0.1, 0.3, -0.3) * CFrame.Angles(math.rad(-46), 0, 0), BONE, Enum.Material.Sandstone)
 	end
 	-- the right antler is snapped and splinted with rebar
-	deco(model, head, "Splint", Vector3.new(0.1, 1.4, 0.1), CFrame.new(0.72, 1.2, 0.3) * CFrame.Angles(math.rad(-14), 0, math.rad(-22)), RUST, metal)
+	deco(model, head, "Splint", Vector3.new(0.1, 1.1, 0.1), CFrame.new(0.72, 1, 0.3) * CFrame.Angles(math.rad(-14), 0, math.rad(-22)), RUST, metal)
 
 	-- arms: too long, ending in rescue-claw manipulators
 	for _, side in { -1, 1 } do

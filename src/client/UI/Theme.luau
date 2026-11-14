@@ -85,6 +85,15 @@ function Theme.button(parent: Instance, name: string, size: UDim2, position: UDi
 	return button
 end
 
+-- Shrinks a fixed-size panel on short screens (phones) so nothing lands off-screen.
+function Theme.fit(object: GuiObject, designHeight: number)
+	local scale = Instance.new("UIScale")
+	local camera = workspace.CurrentCamera
+	local height = if camera then camera.ViewportSize.Y else designHeight
+	scale.Scale = math.clamp(height / designHeight, 0.45, 1)
+	scale.Parent = object
+end
+
 -- Numeric attribute with a default (attributes are untyped).
 function Theme.num(instance: Instance, name: string, default: number): number
 	local value = instance:GetAttribute(name)
