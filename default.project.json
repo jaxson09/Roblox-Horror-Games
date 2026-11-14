@@ -1,0 +1,44 @@
+{
+  "name": "HollowSignal",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "Server": { "$path": "src/server" }
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "CameraMaxZoomDistance": 12,
+        "CameraMinZoomDistance": 0.5,
+        "CharacterWalkSpeed": 12,
+        "CharacterJumpHeight": 0,
+        "CharacterUseJumpPower": false,
+        "NameDisplayDistance": 0,
+        "HealthDisplayDistance": 0
+      },
+      "StarterPlayerScripts": {
+        "Client": { "$path": "src/client" }
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": false,
+        "Gravity": 196.2
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "GlobalShadows": true,
+        "Brightness": 0,
+        "ClockTime": 0.5
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}

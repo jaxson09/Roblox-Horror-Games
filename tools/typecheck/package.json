@@ -1,0 +1,13 @@
+{
+  "name": "hollow-signal-typecheck",
+  "private": true,
+  "type": "module",
+  "description": "Offline Luau type-check of src/ against Roblox API definitions (no Studio needed).",
+  "scripts": {
+    "defs": "curl -sSL -o globalTypes.d.luau https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/main/scripts/globalTypes.d.luau && node gen-defs.mjs globalTypes.d.luau roblox.d.luau",
+    "check": "node check.mjs"
+  },
+  "devDependencies": {
+    "@luau-rs/luau": "0.739.0"
+  }
+}
