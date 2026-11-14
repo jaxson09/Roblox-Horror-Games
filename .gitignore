@@ -2,7 +2,7 @@
 *.rbxlx
 *.rbxl.lock
 *.rbxlx.lock
-node_modules/
+node_modules
 sourcemap.json
 tools/typecheck/roblox.d.luau
 tools/typecheck/globalTypes.d.luau

@@ -579,7 +579,7 @@ local function descend(riders: { Player })
 			Data.bump(player, "Shifts", 1)
 			local spawns = facility.ElevatorSpawns
 			local spot = spawns[(i - 1) % #spawns + 1]
-			Crew.teleport(player, CFrame.new(spot) * CFrame.Angles(0, math.rad(180), 0))
+			Crew.teleport(player, CFrame.new(spot)) -- default facing (-Z) looks at the bay door
 			task.delay(S.ElevatorRideTime, toast, player, Lore.Tips[rng:NextInteger(1, #Lore.Tips)], "info")
 		end)
 	end
