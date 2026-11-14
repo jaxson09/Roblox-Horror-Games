@@ -1,23 +1,34 @@
 --!strict
 --[[ Theme — fonts, colours and tiny typed constructors shared by all client UI. ]]
 
+local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Layout = require(script.Parent.Layout)
 
 local Theme = {}
 
 Theme.Colors = Config.Colors
+-- Three typefaces, each with one job:
+--   Display  Creepster      event lines, titles, anything HUSH says
+--   Body     Special Elite  a worn typewriter: objectives, messages, buttons, case files
+--   Osd      Press Start 2P tiny camcorder tags (REC, timecode, key caps)
+local display = Font.new(Config.Fonts.Display)
+local body = Font.new(Config.Fonts.Body)
 Theme.Fonts = {
+	Display = display,
+	Body = body,
 	Osd = Font.new(Config.Fonts.Osd),
-	Mono = Font.new(Config.Fonts.Mono, Enum.FontWeight.Medium),
-	MonoBold = Font.new(Config.Fonts.Mono, Enum.FontWeight.Bold),
-	Typewriter = Font.new(Config.Fonts.Typewriter),
 	Scrawl = Font.new(Config.Fonts.Scrawl),
-	Horror = Font.new(Config.Fonts.Horror),
+	-- older names used around the client
+	Serif = display,
+	Horror = display,
+	Mono = body,
+	MonoBold = body,
+	Typewriter = body,
 	Sign = Font.new(Config.Fonts.Sign),
-	Serif = Font.fromEnum(Enum.Font.Bodoni), -- event lines, and what it says
 }
 
 function Theme.screen(name: string, order: number): ScreenGui
@@ -72,8 +83,8 @@ function Theme.button(parent: Instance, name: string, size: UDim2, position: UDi
 	button.BackgroundTransparency = 0.35
 	button.BorderSizePixel = 0
 	button.AutoButtonColor = true
-	button.FontFace = Theme.Fonts.Osd
-	button.TextSize = 12
+	button.FontFace = Theme.Fonts.Body
+	button.TextSize = 16
 	button.TextColor3 = Config.Colors.Osd
 	button.Text = text
 	button.Parent = parent
@@ -86,13 +97,45 @@ function Theme.button(parent: Instance, name: string, size: UDim2, position: UDi
 	return button
 end
 
--- Shrinks a fixed-size panel on short screens (phones) so nothing lands off-screen.
-function Theme.fit(object: GuiObject, designHeight: number)
+-- Scales a fixed-size panel down so it always fits the screen (never up).
+function Theme.fit(object: GuiObject, designHeight: number, designWidth: number?)
 	local scale = Instance.new("UIScale")
-	local camera = workspace.CurrentCamera
-	local height = if camera then camera.ViewportSize.Y else designHeight
-	scale.Scale = math.clamp(height / designHeight, 0.45, 1)
 	scale.Parent = object
+	local function update()
+		local camera = workspace.CurrentCamera
+		local size = if camera then camera.ViewportSize else Vector2.new(designWidth or 1280, designHeight)
+		local byWidth = if designWidth then size.X / designWidth else 1
+		scale.Scale = math.clamp(math.min(size.Y / designHeight, byWidth), 0.4, 1)
+	end
+	update()
+	local camera = workspace.CurrentCamera
+	if camera then
+		local connection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(update)
+		object.Destroying:Connect(function()
+			connection:Disconnect()
+		end)
+	end
+end
+
+-- One line of text that shrinks to fit its box instead of wrapping or spilling out of it.
+function Theme.fitText(label: TextLabel | TextButton, maxSize: number)
+	label.TextScaled = true
+	label.TextWrapped = true
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MaxTextSize = maxSize
+	limit.MinTextSize = 6
+	limit.Parent = label
+end
+
+-- Gives a ContextActionService touch button its title, size and slot on the grid.
+function Theme.touchButton(action: string, title: string, slot: string)
+	local spot = Layout.TouchButtons[slot]
+	ContextActionService:SetTitle(action, title)
+	ContextActionService:SetPosition(action, UDim2.new(1, -spot.OX, 1, -spot.OY))
+	local button = ContextActionService:GetButton(action)
+	if button and button:IsA("GuiObject") then
+		(button :: GuiObject).Size = UDim2.fromOffset(Layout.TouchButtonSize, Layout.TouchButtonSize)
+	end
 end
 
 -- Numeric attribute with a default (attributes are untyped).

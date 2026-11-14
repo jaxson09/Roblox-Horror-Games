@@ -13,6 +13,7 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Hud = require(script.Parent.Parent.UI.Hud)
+local Theme = require(script.Parent.Parent.UI.Theme)
 
 local Movement = {}
 
@@ -46,16 +47,14 @@ function Movement.init()
 		wantSprint = state == Enum.UserInputState.Begin
 		return Enum.ContextActionResult.Pass
 	end, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
-	ContextActionService:SetTitle("HS_Sprint", "RUN")
-	ContextActionService:SetPosition("HS_Sprint", UDim2.new(1, -150, 1, -150))
+	Theme.touchButton("HS_Sprint", "RUN", "Run")
 	ContextActionService:BindAction("HS_Crouch", function(_, state)
 		if state == Enum.UserInputState.Begin then
 			setCrouch(not crouching)
 		end
 		return Enum.ContextActionResult.Pass
 	end, true, Enum.KeyCode.C, Enum.KeyCode.LeftControl, Enum.KeyCode.ButtonR3)
-	ContextActionService:SetTitle("HS_Crouch", "CROUCH")
-	ContextActionService:SetPosition("HS_Crouch", UDim2.new(1, -220, 1, -90))
+	Theme.touchButton("HS_Crouch", "DUCK", "Crouch")
 
 	-- coming back up: pull the camera out of first person so the cursor is free again
 	player:GetAttributeChangedSignal("InShift"):Connect(function()

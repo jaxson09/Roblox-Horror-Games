@@ -238,12 +238,15 @@ Config.Images = {
 -- Typography (all built-in Roblox font families).
 ----------------------------------------------------------------------------
 Config.Fonts = {
-	Osd = "rbxasset://fonts/families/PressStart2P.json", -- camcorder on-screen display
-	Mono = "rbxasset://fonts/families/RobotoMono.json", -- terminals, objectives
-	Typewriter = "rbxasset://fonts/families/SpecialElite.json", -- documents, tapes
+	Display = "rbxasset://fonts/families/Creepster.json", -- event lines, titles, what it says
+	Body = "rbxasset://fonts/families/SpecialElite.json", -- worn typewriter: everything you read
+	Osd = "rbxasset://fonts/families/PressStart2P.json", -- tiny camcorder tags only
 	Scrawl = "rbxasset://fonts/families/PermanentMarker.json", -- things written on walls
-	Horror = "rbxasset://fonts/families/Creepster.json", -- used once: when it takes you
-	Sign = "rbxasset://fonts/families/Michroma.json", -- facility signage
+	-- world signage and older names
+	Sign = "rbxasset://fonts/families/SpecialElite.json",
+	Mono = "rbxasset://fonts/families/SpecialElite.json",
+	Typewriter = "rbxasset://fonts/families/SpecialElite.json",
+	Horror = "rbxasset://fonts/families/Creepster.json",
 }
 
 Config.Colors = {

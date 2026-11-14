@@ -170,7 +170,8 @@ end
 function Furnish.boxes(parent: Instance, cf: CFrame, rng: Random)
 	for i = 1, rng:NextInteger(2, 4) do
 		local size = Vector3.new(rng:NextNumber(1.6, 2.6), rng:NextNumber(1.4, 2.2), rng:NextNumber(1.6, 2.6))
-		local offset = CFrame.new(rng:NextNumber(-1.6, 1.6), size.Y / 2 + (if i > 2 then 1.8 else 0), rng:NextNumber(-1.6, 1.6)) * CFrame.Angles(0, rng:NextNumber(-0.5, 0.5), 0)
+		-- kept well inside the cell so a box never pokes into the wall behind or the cell beside it
+		local offset = CFrame.new(rng:NextNumber(-1, 1), size.Y / 2 + (if i > 2 then 2.2 else 0), rng:NextNumber(-0.8, 0.8)) * CFrame.Angles(0, rng:NextNumber(-0.3, 0.3), 0)
 		solid(parent, "Box", size, cf * offset, Color3.fromRGB(138, 108, 74), Enum.Material.Cardboard)
 	end
 end
@@ -253,7 +254,9 @@ local function dress(map: Grid.Map, parent: Instance, region: MapData.Region, rn
 					local cf = center * CFrame.Angles(0, math.rad(if west then -90 else 90), 0) -- headboard (+Z) to the wall
 					Furnish.bed(parent, cf * CFrame.new(0, 0, 0.2), roll < 0.55)
 					Furnish.ivStand(parent, cf * CFrame.new(2.6, 0, 2.6))
-					Furnish.curtain(parent, CFrame.new(at(map, cx, cy) + Vector3.new(side * -0.5, 0, CELL / 2)), 7)
+					if free(map, cx, cy + 1) then
+						Furnish.curtain(parent, CFrame.new(at(map, cx, cy) + Vector3.new(side * -0.5, 0, CELL / 2)), 7)
+					end
 				elseif not edge and roll < 0.12 then
 					Furnish.wheelchair(parent, center * CFrame.Angles(0, rng:NextNumber(0, 6), 0))
 				end
@@ -280,13 +283,13 @@ local function dress(map: Grid.Map, parent: Instance, region: MapData.Region, rn
 				elseif not edge and cx % 3 == 1 and cy % 2 == 0 then
 					Furnish.desk(parent, center * CFrame.Angles(0, if roll < 0.5 then 0 else math.pi, 0), roll < 0.7)
 				elseif wall and roll < 0.2 then
-					Furnish.boxes(parent, wall * CFrame.new(0, 0, 1.6), rng)
+					Furnish.boxes(parent, wall * CFrame.new(0, 0, 1.2), rng)
 				end
 			elseif kind == "Storage" then
 				if not edge and cx % 3 == 0 then
 					Furnish.shelf(parent, center * CFrame.Angles(0, math.rad(90), 0), rng)
 				elseif wall and roll < 0.45 then
-					Furnish.boxes(parent, wall * CFrame.new(0, 0, 1.6), rng)
+					Furnish.boxes(parent, wall * CFrame.new(0, 0, 1.2), rng)
 				end
 			elseif kind == "Lab" then
 				if not edge and cx % 3 == 1 and cy % 3 == 1 then
@@ -311,8 +314,8 @@ local function dress(map: Grid.Map, parent: Instance, region: MapData.Region, rn
 				elseif Grid.charAt(map, cx + 1, cy) == "#" then
 					-- cold drawers along the east wall
 					for row = 0, 1 do
-						decor(parent, "ColdDrawer", Vector3.new(0.2, 2.6, 3.2), center * CFrame.new(3.85, 2 + row * 3, 0), STEEL, Enum.Material.Metal)
-						decor(parent, "ColdHandle", Vector3.new(0.3, 0.2, 1.2), center * CFrame.new(3.65, 2.6 + row * 3, 0), STEEL_DARK, Enum.Material.Metal)
+						decor(parent, "ColdDrawer", Vector3.new(0.3, 2.6, 3.2), center * CFrame.new(3.69, 2 + row * 3, 0), STEEL, Enum.Material.Metal)
+						decor(parent, "ColdHandle", Vector3.new(0.3, 0.2, 1.2), center * CFrame.new(3.39, 2.6 + row * 3, 0), STEEL_DARK, Enum.Material.Metal)
 					end
 				end
 			elseif kind == "Lobby" then

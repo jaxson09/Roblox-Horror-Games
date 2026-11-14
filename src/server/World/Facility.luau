@@ -24,7 +24,7 @@ local Facility = {}
 
 export type Door = { Idx: number, Panel: Part, Core: Part, ClosedCF: CFrame, OpenCF: CFrame, Open: boolean, Prompt: ProximityPrompt, Position: Vector3 }
 export type Locker = { Idx: number, Model: Model, InsideCF: CFrame, ExitCF: CFrame, Prompt: ProximityPrompt, Occupant: Player?, Position: Vector3 }
-export type Station = { Idx: number, Root: Part, Lamp: Part, Prompt: ProximityPrompt, Left: number, Position: Vector3 }
+export type Station = { Idx: number, Root: Part, Lamp: Part, Beacon: Part, Prompt: ProximityPrompt, Left: number, Position: Vector3 }
 export type Dispenser = { Kind: string, Root: Part, Prompt: ProximityPrompt, Position: Vector3 }
 export type Cabinet = { Idx: number, Root: Part, Drawer: Part, Prompt: ProximityPrompt, File: string?, Position: Vector3 }
 export type Bed = { Idx: number, WakeCF: CFrame, Position: Vector3 }
@@ -286,21 +286,23 @@ local function buildStation(map: Grid.Map, folder: Instance, idx: number): Stati
 	alcove(map, model, idx, dx, dy, 2)
 	local cf = frame(map, cx, cy, dx, dy, 2.6)
 	local body = Build.block(model, "Body", Vector3.new(3.2, 4.4, 1.4), cf * CFrame.new(0, 3.6, 0), Color3.fromRGB(150, 150, 140), Enum.Material.Metal)
-	Build.block(model, "Hatch", Vector3.new(1.8, 2, 0.2), cf * CFrame.new(0, 3.2, -0.72), Color3.fromRGB(40, 44, 46), Enum.Material.Metal, { CanCollide = false })
+	Build.block(model, "Hatch", Vector3.new(1.8, 2, 0.2), cf * CFrame.new(0, 3.2, -0.8), Color3.fromRGB(40, 44, 46), Enum.Material.Metal, { CanCollide = false })
 	-- the tube itself, up into the ceiling
 	local tube = Build.block(model, "Tube", Vector3.new(CEIL - 5.8, 1.5, 1.5), cf * CFrame.new(0, 5.8 + (CEIL - 5.8) / 2, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(170, 200, 200), Enum.Material.Glass, { CanCollide = false, Shape = Enum.PartType.Cylinder })
 	tube.Transparency = 0.5
 	Build.block(model, "Canister", Vector3.new(1.6, 0.9, 0.9), cf * CFrame.new(0, 6.8, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(196, 150, 28), Enum.Material.Plastic, { CanCollide = false, Shape = Enum.PartType.Cylinder })
-	local plate = Build.block(model, "Plate", Vector3.new(2.8, 0.7, 0.1), cf * CFrame.new(0, 5.3, -0.72), Color3.fromRGB(20, 24, 24), Enum.Material.Metal, { CanCollide = false })
+	local plate = Build.block(model, "Plate", Vector3.new(2.8, 0.7, 0.1), cf * CFrame.new(0, 5.3, -0.75), Color3.fromRGB(20, 24, 24), Enum.Material.Metal, { CanCollide = false })
 	Build.sign(plate, Enum.NormalId.Front, "TUBE STATION", Config.Fonts.Mono, { TextColor = Config.Colors.Amber, LightInfluence = 0.2 })
-	local lamp = Build.block(model, "Lamp", Vector3.new(0.5, 0.5, 0.3), cf * CFrame.new(1.1, 1.9, -0.72), C_GREEN, Enum.Material.Neon, { CanCollide = false })
+	local lamp = Build.block(model, "Lamp", Vector3.new(0.5, 0.5, 0.3), cf * CFrame.new(1.1, 1.9, -0.85), C_GREEN, Enum.Material.Neon, { CanCollide = false })
 	local glow = Build.pointLight(lamp, C_GREEN, 0.7, 12)
 	glow.Name = "Glow"
+	-- a red beacon on top of the cabinet, beside the tube: how you find a station in the dark
+	local beacon = Build.block(model, "Beacon", Vector3.new(0.5, 0.5, 0.5), cf * CFrame.new(-1.2, 6.05, 0), C_RED, Enum.Material.Neon, { CanCollide = false, CastShadow = false })
 	Sfx.make(body, "TubeSend", { Volume = 1.2, MinDistance = 30, MaxDistance = 320 })
 	local prompt = Build.prompt(body, "Tube Station", "Send evidence", Config.Shift.SendHold, 8)
 	prompt.Enabled = false
 	CollectionService:AddTag(body, "HS_Station")
-	return { Idx = idx, Root = body, Lamp = lamp, Prompt = prompt, Left = Config.Shift.CanistersPerStation, Position = body.Position }
+	return { Idx = idx, Root = body, Lamp = lamp, Beacon = beacon, Prompt = prompt, Left = Config.Shift.CanistersPerStation, Position = body.Position }
 end
 
 function Facility.setStationLamp(station: Station)
@@ -324,16 +326,16 @@ function Facility.buildDispenser(parent: Instance, cf: CFrame, kind: string): (P
 	local product = Config.Products[kind]
 	local tint = DISPENSER_TINT[kind] or Config.Colors.Amber
 	local body = Build.block(parent, "Dispenser_" .. kind, Vector3.new(3.4, 5.2, 1.2), cf * CFrame.new(0, 4.4, 0), Color3.fromRGB(196, 198, 190), Enum.Material.Metal)
-	local window = Build.block(parent, "DispenserWindow", Vector3.new(2.6, 2.2, 0.1), cf * CFrame.new(0, 5.4, -0.62), tint, Enum.Material.Neon, { CanCollide = false })
+	local window = Build.block(parent, "DispenserWindow", Vector3.new(2.6, 2.2, 0.1), cf * CFrame.new(0, 5.4, -0.65), tint, Enum.Material.Neon, { CanCollide = false })
 	window.Transparency = 0.35
 	Build.pointLight(window, tint, 0.8, 11)
 	CollectionService:AddTag(window, "HS_Candle")
 	for i = -1, 1 do
-		Build.block(parent, "Vial", Vector3.new(0.3, 1.2, 0.3), cf * CFrame.new(i * 0.7, 5.3, -0.4), Color3.fromRGB(230, 230, 230), Enum.Material.Glass, { CanCollide = false })
+		Build.block(parent, "Vial", Vector3.new(0.3, 0.9, 0.3), cf * CFrame.new(i * 0.6, 3.1, -1), Color3.fromRGB(230, 230, 230), Enum.Material.Glass, { CanCollide = false })
 	end
-	local label = Build.block(parent, "DispenserLabel", Vector3.new(3, 0.9, 0.1), cf * CFrame.new(0, 3.5, -0.62), Color3.fromRGB(24, 28, 28), Enum.Material.Metal, { CanCollide = false })
+	local label = Build.block(parent, "DispenserLabel", Vector3.new(3, 0.9, 0.1), cf * CFrame.new(0, 3.85, -0.65), Color3.fromRGB(24, 28, 28), Enum.Material.Metal, { CanCollide = false })
 	Build.sign(label, Enum.NormalId.Front, string.upper(product.Name), Config.Fonts.Mono, { TextColor = tint, LightInfluence = 0.1, Brightness = 1.2 })
-	Build.block(parent, "DispenserTray", Vector3.new(2.2, 0.3, 0.9), cf * CFrame.new(0, 2.5, -0.5), Color3.fromRGB(40, 44, 44), Enum.Material.Metal, { CanCollide = false })
+	Build.block(parent, "DispenserTray", Vector3.new(2.2, 0.3, 0.8), cf * CFrame.new(0, 2.5, -1), Color3.fromRGB(40, 44, 44), Enum.Material.Metal, { CanCollide = false })
 	Sfx.make(body, "Effigy", { Volume = 0.25, Looped = true, MaxDistance = 24 }):Play()
 	local prompt = Build.prompt(body, product.Name, "Dispense", 0.5, 7)
 	prompt:SetAttribute("Product", kind)
@@ -493,11 +495,10 @@ local function buildLights(map: Grid.Map, folder: Folder, facility: Facility)
 			table.insert(facility.Fixtures, { Part = part, Light = light, Dead = dead, Emergency = false })
 		end
 	end
-	-- a red emergency lamp over every tube station: they are how you find them in the dark
+	-- the beacon on each tube station stays lit even when the ward loses power
 	for _, station in facility.Stations do
-		local part = Build.block(lights, "Beacon", Vector3.new(0.7, 0.4, 0.7), CFrame.new(station.Position + Vector3.new(0, CEIL - station.Position.Y + ORIGIN.Y - 0.3, 0)), C_RED, Enum.Material.Neon, { CanCollide = false, CastShadow = false })
-		local light = Build.pointLight(part, C_RED, 0.6, 14)
-		table.insert(facility.Fixtures, { Part = part, Light = light, Dead = false, Emergency = true })
+		local light = Build.pointLight(station.Beacon, C_RED, 0.6, 14)
+		table.insert(facility.Fixtures, { Part = station.Beacon, Light = light, Dead = false, Emergency = true })
 	end
 end
 

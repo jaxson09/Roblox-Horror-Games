@@ -45,9 +45,9 @@ function PartyUi.init()
 	gui.Enabled = false
 	local click = Sfx.make(gui, "Blip", { Volume = 0.35 })
 
-	local panel = Theme.frame(gui, "Panel", UDim2.fromOffset(460, 486), UDim2.fromScale(0.5, 0.5), Color3.fromRGB(8, 9, 9), 0.08)
+	local panel = Theme.frame(gui, "Panel", UDim2.fromOffset(460, 486), UDim2.fromScale(0.5, 0.54), Color3.fromRGB(8, 9, 9), 0.08)
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	Theme.fit(panel, 640)
+	Theme.fit(panel, 720, 520)
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = C.Osd
 	stroke.Transparency = 0.5
@@ -59,7 +59,8 @@ function PartyUi.init()
 	pad.PaddingBottom = UDim.new(0, 18)
 	pad.Parent = panel
 
-	local title = Theme.label(panel, "Title", UDim2.new(1, 0, 0, 22), UDim2.fromOffset(0, 0), F.Osd, 16, C.Osd, "CREATE LOBBY")
+	local title = Theme.label(panel, "Title", UDim2.new(1, 0, 0, 30), UDim2.fromOffset(0, -4), F.Display, 30, C.Osd, "CREATE LOBBY")
+	Theme.fitText(title, 30)
 
 	----------------------------------------------------------------------
 	-- setting up
@@ -86,7 +87,8 @@ function PartyUi.init()
 			click:Play()
 		end)
 	end
-	local blurb = Theme.label(config, "Blurb", UDim2.new(1, 0, 0, 32), UDim2.fromOffset(0, 130), F.Mono, 13, C.Osd, "")
+	local blurb = Theme.label(config, "Blurb", UDim2.new(1, 0, 0, 34), UDim2.fromOffset(0, 130), F.Body, 14, C.Osd, "")
+	Theme.fitText(blurb, 14)
 
 	header(config, "CHAPTER", 172)
 	local partButtons: { TextButton } = {}
@@ -101,7 +103,7 @@ function PartyUi.init()
 		end)
 	end
 	local create = Theme.button(config, "Create", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 320), "CREATE LOBBY")
-	create.TextSize = 14
+	create.TextSize = 18
 	style(create, true, true)
 	create.MouseButton1Click:Connect(function()
 		click:Play()
@@ -112,15 +114,18 @@ function PartyUi.init()
 	-- in a lobby
 	----------------------------------------------------------------------
 	local lobby = Theme.frame(panel, "Lobby", UDim2.new(1, 0, 0, 360), UDim2.fromOffset(0, 36), Color3.new(0, 0, 0), 1)
-	local info = Theme.label(lobby, "Info", UDim2.new(1, 0, 0, 36), UDim2.fromOffset(0, 0), F.Mono, 14, C.Osd, "")
+	local info = Theme.label(lobby, "Info", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 0), F.Body, 15, C.Osd, "")
+	Theme.fitText(info, 15)
 	header(lobby, "CREW", 46)
-	local members = Theme.label(lobby, "Members", UDim2.new(1, 0, 0, 170), UDim2.fromOffset(0, 66), F.MonoBold, 17, C.Osd, "")
+	local members = Theme.label(lobby, "Members", UDim2.new(1, 0, 0, 170), UDim2.fromOffset(0, 66), F.Body, 18, C.Osd, "")
+	members.ClipsDescendants = true
 	members.LineHeight = 1.2
-	local status = Theme.label(lobby, "Status", UDim2.new(1, 0, 0, 54), UDim2.fromOffset(0, 248), F.Osd, 14, C.Amber, "")
+	local status = Theme.label(lobby, "Status", UDim2.new(1, 0, 0, 54), UDim2.fromOffset(0, 248), F.Display, 28, C.Amber, "")
+	Theme.fitText(status, 28)
 	status.TextXAlignment = Enum.TextXAlignment.Center
 	status.TextYAlignment = Enum.TextYAlignment.Center
 	local start = Theme.button(lobby, "Start", UDim2.new(1, 0, 0, 40), UDim2.fromOffset(0, 320), "START MATCH")
-	start.TextSize = 14
+	start.TextSize = 18
 	style(start, true, true)
 	start.MouseButton1Click:Connect(function()
 		click:Play()

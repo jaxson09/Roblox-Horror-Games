@@ -16,6 +16,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Sfx = require(ReplicatedStorage.Shared.Sfx)
 local Hud = require(script.Parent.Parent.UI.Hud)
+local Theme = require(script.Parent.Parent.UI.Theme)
 local Movement = require(script.Parent.Movement)
 
 local Camcorder = {}
@@ -52,15 +53,20 @@ function Camcorder.init()
 		end
 		return Enum.ContextActionResult.Pass
 	end, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
-	ContextActionService:SetTitle("HS_Camera", "CAM")
-	ContextActionService:SetPosition("HS_Camera", UDim2.new(1, -230, 1, -170))
+	Theme.touchButton("HS_Camera", "CAM", "Cam")
+	-- touch and gamepad take the photograph with their own button
+	ContextActionService:BindAction("HS_Shoot", function(_, state)
+		if state == Enum.UserInputState.Begin then
+			shoot()
+		end
+		return Enum.ContextActionResult.Pass
+	end, true, Enum.KeyCode.ButtonR2)
+	Theme.touchButton("HS_Shoot", "SHOT", "Shot")
 
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if input.UserInputType == Enum.UserInputType.MouseButton2 then
 			held = true
 		elseif input.UserInputType == Enum.UserInputType.MouseButton1 and not processed then
-			shoot()
-		elseif input.KeyCode == Enum.KeyCode.ButtonR2 then
 			shoot()
 		end
 	end)
@@ -69,9 +75,6 @@ function Camcorder.init()
 			held = false
 		end
 	end)
-	-- the on-screen PHOTOGRAPH button (touch) asks through an attribute
-	player:GetAttributeChangedSignal("ShootRequest"):Connect(shoot)
-
 	RunService.RenderStepped:Connect(function(dt)
 		if not usable() then
 			toggled = false

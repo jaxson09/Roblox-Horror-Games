@@ -85,17 +85,17 @@ end
 local function buildElevators(hall: Folder, lobby: Lobby)
 	local count = Config.Lobby.PadCount
 	local spacing = (X2 - X1) / count
-	local header = Build.block(hall, "AccessSign", Vector3.new(44, 2.4, 0.3), CFrame.new(0, 15.6, Z_FAR + 0.4), Color3.fromRGB(14, 14, 14), Enum.Material.Metal, { CanCollide = false })
-	Build.sign(header, Enum.NormalId.Back, "WARD C ELEVATORS  —  FORM YOUR CREW IN A CIRCLE", Config.Fonts.Sign, { TextColor = Config.Colors.Amber, LightInfluence = 0, Brightness = 1.3 })
+	local header = Build.block(hall, "AccessSign", Vector3.new(44, 1.8, 0.3), CFrame.new(0, 16.5, Z_FAR + 0.4), Color3.fromRGB(14, 14, 14), Enum.Material.Metal, { CanCollide = false })
+	Build.sign(header, Enum.NormalId.Back, "WARD C ELEVATORS  -  FORM YOUR CREW IN A CIRCLE", Config.Fonts.Display, { TextColor = Config.Colors.Amber, LightInfluence = 0, Brightness = 1.3 })
 	for i = 1, count do
 		local x = X1 + spacing * (i - 0.5)
 		-- freight elevator door set into the far wall
-		Build.block(hall, "ElevatorFrame", Vector3.new(11, 13, 0.6), CFrame.new(x, 6.5, Z_FAR + 0.3), HAZARD, Enum.Material.Metal)
+		Build.block(hall, "ElevatorFrame", Vector3.new(11, 12.8, 0.6), CFrame.new(x, 6.4, Z_FAR + 0.3), HAZARD, Enum.Material.Metal)
 		local doors = Build.block(hall, "ElevatorDoors", Vector3.new(9.4, 12, 0.4), CFrame.new(x, 6, Z_FAR + 0.7), Color3.fromRGB(44, 46, 50), Enum.Material.DiamondPlate)
 		Build.block(hall, "ElevatorSeam", Vector3.new(0.2, 12, 0.1), doors.CFrame * CFrame.new(0, 0, 0.25), DARK, Enum.Material.Metal, { CanCollide = false })
-		local plate = Build.block(hall, "ElevatorNumber", Vector3.new(5, 1.4, 0.2), CFrame.new(x, 13.9, Z_FAR + 0.7), Color3.fromRGB(14, 14, 14), Enum.Material.Metal, { CanCollide = false })
+		local plate = Build.block(hall, "ElevatorNumber", Vector3.new(5, 1.2, 0.2), CFrame.new(x, 13.7, Z_FAR + 0.5), Color3.fromRGB(14, 14, 14), Enum.Material.Metal, { CanCollide = false })
 		Build.sign(plate, Enum.NormalId.Back, string.format("LIFT %02d", i), Config.Fonts.Mono, { TextColor = Config.Colors.Amber, LightInfluence = 0, Brightness = 1.3 })
-		local beacon = Build.block(hall, "ElevatorBeacon", Vector3.new(0.9, 0.6, 0.9), CFrame.new(x, 15, Z_FAR + 1.2), RED, Enum.Material.Neon, { CanCollide = false })
+		local beacon = Build.block(hall, "ElevatorBeacon", Vector3.new(0.9, 0.6, 0.9), CFrame.new(x, 14.9, Z_FAR + 0.6), RED, Enum.Material.Neon, { CanCollide = false })
 		Build.pointLight(beacon, RED, 1, 20)
 		CollectionService:AddTag(beacon, "HS_Beacon")
 
@@ -117,7 +117,7 @@ local function buildElevators(hall: Folder, lobby: Lobby)
 		label.Name = "Label"
 		label.Size = UDim2.fromScale(1, 1)
 		label.BackgroundTransparency = 1
-		label.FontFace = Font.new(Config.Fonts.Mono, Enum.FontWeight.Bold)
+		label.FontFace = Font.new(Config.Fonts.Display)
 		label.TextColor3 = Config.Colors.Amber
 		label.TextStrokeTransparency = 0.3
 		label.TextScaled = true

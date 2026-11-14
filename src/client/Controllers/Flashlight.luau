@@ -86,8 +86,7 @@ function Flashlight.init()
 		end
 		return Enum.ContextActionResult.Pass
 	end, true, Enum.KeyCode.F, Enum.KeyCode.ButtonY)
-	ContextActionService:SetTitle("HS_Light", "LIGHT")
-	ContextActionService:SetPosition("HS_Light", UDim2.new(1, -90, 1, -210))
+	Theme.touchButton("HS_Light", "LITE", "Light")
 	-- Night mode is only bound (and only gets a touch button) for owners of the pass
 	local nightBound = false
 	local function bindNight()
@@ -103,8 +102,7 @@ function Flashlight.init()
 			end
 			return Enum.ContextActionResult.Pass
 		end, true, Enum.KeyCode.N, Enum.KeyCode.DPadUp)
-		ContextActionService:SetTitle("HS_NightVision", "NIGHT")
-		ContextActionService:SetPosition("HS_NightVision", UDim2.new(1, -160, 1, -230))
+		Theme.touchButton("HS_NightVision", "NV", "Night")
 	end
 	bindNight()
 	player:GetAttributeChangedSignal("Pass_NightVision"):Connect(bindNight)
