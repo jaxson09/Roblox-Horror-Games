@@ -9,3 +9,6 @@ tools/typecheck/globalTypes.d.luau
 .DS_Store
 __pycache__/
 *.zip
+references/video/*.mp4
+references/video/*.mov
+references/video/*.webm
